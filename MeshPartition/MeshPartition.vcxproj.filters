@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="covariance.cpp" />
+    <ClCompile Include="mesh_partition.cpp" />
+    <ClCompile Include="include\heap\MxHeap.cxx">
+      <Filter>heap</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="covariance.h" />
+    <ClInclude Include="mesh_partition.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="heap">
+      <UniqueIdentifier>{e5aa7915-4e9b-471b-a627-b87fac999bcc}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
