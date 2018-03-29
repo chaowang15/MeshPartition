@@ -62,8 +62,8 @@ public:
     //
     int size() const { return length(); }
 
-    typename MxBlock<T>::iterator end()       { return begin()+size(); }
-    typename MxBlock<T>::const_iterator end() const { return begin()+size(); }
+    typename MxBlock<T>::iterator end()       { return this->begin()+size(); }
+    typename MxBlock<T>::const_iterator end() const { return this->begin()+size(); }
 
     void push_back(const T& t) { add(t); }
 };

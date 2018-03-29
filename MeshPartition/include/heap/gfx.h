@@ -29,11 +29,11 @@
 // same things in their header files.  We try to compensate here.
 //
 
-#if !defined(HAVE_BOOL)
-typedef int bool;
-const bool false = 0;
-const bool true = 1;
-#endif
+// #if !defined(HAVE_BOOL)
+// typedef int bool;
+// const bool false = 0;
+// const bool true = 1;
+// #endif
 
 // Microsoft doesn't define std::min() & std::max() because it conflicts with
 // <windef.h>, and their _MIN/_MAX macro workarounds don't add the std::
