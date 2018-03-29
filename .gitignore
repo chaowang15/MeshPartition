@@ -70,6 +70,9 @@ build*Release
 *.png
 *.jpg
 
+# VS2013 file
+*.idb
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
