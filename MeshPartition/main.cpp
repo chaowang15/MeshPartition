@@ -39,14 +39,12 @@ int main(int argc, char** argv)
 	mesh_partition.postProcessClusters();
 
 	// Save cluster file and mesh model
-	string fname = ply_fname.substr(0, ply_fname.length() - 4);
-	size_t pos = fname.find_last_of("/\\");
-	string cluster_fname = "clusters.txt";
-	if (pos != string::npos)
-		cluster_fname = fname.substr(0, pos + 1) + cluster_fname;
+	string fname = ply_fname.substr(0, ply_fname.length() - 4) + "-clusters" + std::to_string(cluster_num);
+	string cluster_fname = fname + ".txt";
 	cout << "Saving cluster file into '" << cluster_fname << "' ... " << endl;
 	mesh_partition.saveClusterFile(cluster_fname);
-	string output_ply_fname = fname + "-cluster.ply";
+	
+	string output_ply_fname = fname + ".ply";
 	cout << "Saving ply model '" << output_ply_fname << "' ... " << endl;
 	mesh_partition.writePLYWithFaceColors(output_ply_fname);
 
