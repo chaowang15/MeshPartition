@@ -65,7 +65,7 @@ struct Cluster
 struct VertexCluster
 {
 	unordered_set<int> elements, neighbors;
-	QEMQuadrics Q, iniQ;
+	QEMQuadrics Q, iniQ;	
 };
 
 class MeshPartition

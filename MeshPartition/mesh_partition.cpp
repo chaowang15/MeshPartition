@@ -887,7 +887,6 @@ void MeshPartition::splitCluster(int original_cidx, vector<unordered_set<int>>& 
 */
 /************************************************************************/
 
-
 void MeshPartition::runMeshSimplification(double ratio)
 {
 	target_vtx_num_ = int(ratio * vertex_num_);
@@ -933,7 +932,7 @@ void MeshPartition::initVtxEdgeContraction()
 	for (int i = 0; i < face_num_; ++i)
 	{
 		QEMQuadrics Q(vertices_[faces_[i].indices[0]].pt, vertices_[faces_[i].indices[1]].pt, vertices_[faces_[i].indices[2]].pt);
-		//Q *= 1.0 / 3; // not sure if this is necessary (from the paper)
+		Q *= 1.0 / 3; // normalizing factor from the paper
 		for (int j = 0; j < 3; ++j)
 			vtx_clusters_[faces_[i].indices[j]].Q += Q;
 	}
@@ -974,7 +973,7 @@ void MeshPartition::initVtxEdgeContraction()
 			vtx_clusters_[v2].Q += Q;
 		}
 	}
-	// Add edge into heap
+	// Add all edges into heap
 	for (auto it : edge2faces_)
 	{
 		long long key = it.first;
@@ -984,8 +983,6 @@ void MeshPartition::initVtxEdgeContraction()
 		computeVtxEdgeEnergy(e);
 		updateEdgeInHeap(e);
 	}
-
-
 	// Save initial quadrics
 	for (int i = 0; i < vertex_num_; ++i)
 		vtx_clusters_[i].iniQ = vtx_clusters_[i].Q;
@@ -996,9 +993,8 @@ void MeshPartition::computeVtxEdgeEnergy(Edge* edge)
 {
 	QEMQuadrics Q = vtx_clusters_[edge->v1].Q;
 	Q += vtx_clusters_[edge->v2].Q;
-	Vector3d v;
 	double energy = 0;
-	if (Q.optimize(v))
+	if (Q.optimize())
 		energy = Q.energy_;
 	else
 	{
