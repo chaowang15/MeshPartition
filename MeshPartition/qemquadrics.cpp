@@ -32,11 +32,11 @@ QEMQuadrics::QEMQuadrics(const Vector3d& v1)
 	c_ = v1.dot(v1);
 }
 
-bool QEMQuadrics::optimize()
+bool QEMQuadrics::optimize(Vector3d& v)
 {
 	if (A_.determinant() < 1e-12) return false;
-	v_ = -A_.inverse() * b_;
-	energy_ = b_.dot(v_) + c_;
+	v = -A_.inverse() * b_;
+	energy_ = b_.dot(v) + c_;
 	return true;
 }
 

@@ -25,10 +25,20 @@ public:
 
 struct Vertex
 {
+	int vtx_cluster_id;
 	Vector3d pt;
 	Vector3f color, cluster_color;
-	unordered_set<int> neighbors;
-	vector<int> belonging_faces; // faces that contains this vertex
+	unordered_set<int> neighbors, belonging_faces;
+	Vertex() : vtx_cluster_id(-1) {}
+};
+
+struct VertexCluster
+{
+	bool is_border;
+	Vector3d pt;
+	unordered_set<int> neighbors, belonging_faces, elements;
+	QEMQuadrics Q, iniQ;
+	VertexCluster() : is_border(false) {}
 };
 
 struct Face
@@ -60,12 +70,6 @@ struct Cluster
 	CovObj cov, ini_cov;
 	Cluster() : is_new(false), energy(0){}
 	bool isValid() { return !elements.empty(); }
-};
-
-struct VertexCluster
-{
-	unordered_set<int> elements, neighbors;
-	QEMQuadrics Q, iniQ;	
 };
 
 class MeshPartition
@@ -117,17 +121,22 @@ private:
 
 	/* Mesh Simplification */
 	void initVtxEdgeContraction();
+	void getBorderVertices();
 	void contractAllVtxEdges();
+	void initVtxQuadrics();
 	bool runVtxEdgeContractionOnce();
 	void applyVtxEdgeContraction(Edge* edge);
 	bool checkVtxEdgeContraction(Edge* edge);
+	bool isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& vtx);
+	void mergeVtxClusters(int c1, int c2);
+	void findVtxClusterNeighbors(int c1);
 
 	inline long long getKey(long long a, long long b){ 
 		return (a << 32) | b; // use one long long integer storing two 32-bit ints as key 
 	};
 	inline void getEdge(long long key, int& v1, int& v2){
-		v2 = key & 0xffffffffLL;
-		v1 = (key >> 32) & 0xffffffffLL;
+		v2 = int(key & 0xffffffffLL);
+		v1 = int(key >> 32);
 	}
 
 public:
@@ -138,7 +147,7 @@ public:
 	unordered_map<long long, vector<int>> edge2faces_;
 
 	int vertex_num_, face_num_;
-	int init_vtx_num_, target_vtx_num_;
+	int edge_num_, target_edge_num_;
 	vector<vector<Edge*>> cluster_edges_;
 	MxHeap heap_;
 	int cluster_num_; // target/final cluster number

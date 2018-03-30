@@ -358,7 +358,7 @@ void MeshPartition::getFaceAndVertexNeighbors()
 		for (int j = 0; j < 3; ++j){
 			vertices_[fa[j]].neighbors.insert(fa[(j + 1) % 3]);
 			vertices_[fa[j]].neighbors.insert(fa[(j + 2) % 3]);
-			vertices_[fa[j]].belonging_faces.push_back(i);
+			vertices_[fa[j]].belonging_faces.insert(i);
 			int a = (j == 2) ? fa[0] : fa[j];
 			int b = (j == 2) ? fa[j] : fa[j + 1];
 			long long edge = getKey(a, b);
@@ -889,31 +889,49 @@ void MeshPartition::splitCluster(int original_cidx, vector<unordered_set<int>>& 
 
 void MeshPartition::runMeshSimplification(double ratio)
 {
-	target_vtx_num_ = int(ratio * vertex_num_);
-	if (target_vtx_num_ < 3)
-	{
-		cout << "Ratio " << ratio << " is too small. " << endl;
-		return;
-	}
+	cout << "Running mesh simplification..." << endl;
+	cout << "Initializing ..." << endl;
 	initVtxEdgeContraction();
 
+	edge_num_ = heap_.size();
+	target_edge_num_ = int(ratio * edge_num_);
+	cout << "Running non-border edge contraction ..." << endl;
 	contractAllVtxEdges();
+
+	cout << "Running border edge contraction ..." << endl;
+	contractAllVtxEdges();
+
 }
 
 void MeshPartition::contractAllVtxEdges()
 {
-	init_vtx_num_ = vertex_num_;
-	while (init_vtx_num_ > target_vtx_num_)
+	while (edge_num_ > target_edge_num_)
 	{
 		if (!runVtxEdgeContractionOnce())
 			return;
 	}
-	assert(init_vtx_num_ == target_vtx_num_);
+	assert(edge_num_ == target_edge_num_);
 }
 
 void MeshPartition::initVtxEdgeContraction()
 {
-	// Set face's cluster id
+	clearClusterEdgesAndHeap();
+
+	vtx_clusters_.resize(vertex_num_);
+	for (int i = 0; i < vertex_num_; ++i)
+	{
+		vtx_clusters_[i].elements.insert(i);
+		vtx_clusters_[i].pt = vertices_[i].pt;
+		vtx_clusters_[i].neighbors.insert(vertices_[i].neighbors.begin(), vertices_[i].neighbors.end());
+		vtx_clusters_[i].belonging_faces.insert(vertices_[i].belonging_faces.begin(), vertices_[i].belonging_faces.end());
+		vertices_[i].vtx_cluster_id = i;
+	}
+	getBorderVertices();
+	initVtxQuadrics();
+}
+
+void MeshPartition::getBorderVertices()
+{
 	for (int i = 0; i < cluster_num_; ++i)
 	{
 		if (clusters_[i].isValid())
@@ -924,32 +942,12 @@ void MeshPartition::initVtxEdgeContraction()
 	}
 	if (edge2faces_.empty())
 		getFaceAndVertexNeighbors();
-	if (!cluster_edges_.empty())
-		clearClusterEdgesAndHeap();
-
-	// Compute face quadrics
-	vtx_clusters_.resize(vertex_num_);
-	for (int i = 0; i < face_num_; ++i)
-	{
-		QEMQuadrics Q(vertices_[faces_[i].indices[0]].pt, vertices_[faces_[i].indices[1]].pt, vertices_[faces_[i].indices[2]].pt);
-		Q *= 1.0 / 3; // normalizing factor from the paper
-		for (int j = 0; j < 3; ++j)
-			vtx_clusters_[faces_[i].indices[j]].Q += Q;
-	}
-	// Compute point quadrics
-	for (int i = 0; i < vertex_num_; ++i)
-	{
-		QEMQuadrics Q(vertices_[i].pt);
-		Q *= kPointCoefficient;
-		vtx_clusters_[i].Q += Q;
-	}
-	// Compute border edge quadrics
 	for (auto it : edge2faces_)
 	{
 		long long key = it.first;
 		int v1, v2;
 		getEdge(key, v1, v2);
-		int n = int(it.second.size());
+		size_t n = it.second.size();
 		bool flag_border_edge = false;
 		if (n == 0 || n > 2)
 		{
@@ -966,12 +964,29 @@ void MeshPartition::initVtxEdgeContraction()
 				flag_border_edge = true; // cluster border
 		}
 		if (flag_border_edge)
-		{
-			QEMQuadrics Q(vertices_[v1].pt, vertices_[v2].pt);
-			Q *= kEdgeCoefficient;
-			vtx_clusters_[v1].Q += Q;
-			vtx_clusters_[v2].Q += Q;
-		}
+			vtx_clusters_[v1].is_border = vtx_clusters_[v2].is_border = true;
+	}
+}
+
+void MeshPartition::initVtxQuadrics()
+{
+	// face quadrics
+	for (int i = 0; i < face_num_; ++i)
+	{
+		QEMQuadrics Q(vertices_[faces_[i].indices[0]].pt, vertices_[faces_[i].indices[1]].pt, vertices_[faces_[i].indices[2]].pt);
+		for (int j = 0; j < 3; ++j)
+			vtx_clusters_[faces_[i].indices[j]].Q += Q;
+	}
+	const double kFaceFactor = 1.0 / 3; // normalizing factor from the paper
+	for (int i = 0; i < vertex_num_; ++i)
+		vtx_clusters_[i].Q *= kFaceFactor;
+	
+	// point quadrics
+	for (int i = 0; i < vertex_num_; ++i)
+	{
+		QEMQuadrics Q(vertices_[i].pt);
+		Q *= kPointCoefficient;
+		vtx_clusters_[i].Q += Q;
 	}
 	// Add all edges into heap
 	for (auto it : edge2faces_)
@@ -979,6 +994,7 @@ void MeshPartition::initVtxEdgeContraction()
 		long long key = it.first;
 		int v1, v2;
 		getEdge(key, v1, v2);
+		if (vtx_clusters_[v1].is_border || vtx_clusters_[v2].is_border) continue;
 		Edge *e = new Edge(v1, v2);
 		if (checkVtxEdgeContraction(e))
 			updateEdgeInHeap(e);
@@ -986,21 +1002,20 @@ void MeshPartition::initVtxEdgeContraction()
 	// Save initial quadrics
 	for (int i = 0; i < vertex_num_; ++i)
 		vtx_clusters_[i].iniQ = vtx_clusters_[i].Q;
-
 }
 
 bool MeshPartition::checkVtxEdgeContraction(Edge* edge)
 {
-	// check if the edge contraction can cause simplex inversion
-	
-
 	QEMQuadrics Q = vtx_clusters_[edge->v1].Q;
 	Q += vtx_clusters_[edge->v2].Q;
 	double energy = 0;
-
-
-	if (Q.optimize())
+	Vector3d v;
+	if (Q.optimize(v))
+	{
+		if (!isContractedVtxValid(edge, edge->v1, v) || !isContractedVtxValid(edge, edge->v2, v))
+			return false;
 		energy = Q.energy_;
+	}
 	else
 	{
 		double energy1 = Q(vertices_[edge->v1].pt);
@@ -1008,8 +1023,43 @@ bool MeshPartition::checkVtxEdgeContraction(Edge* edge)
 		energy = energy1 < energy2 ? energy1 : energy2;
 	}
 	edge->heap_key(-energy); // it is a max-heap by default but we need a min-heap
+	return true;
 }
 
+// check if the edge contraction can cause simplex inversion
+bool MeshPartition::isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& vtx)
+{
+	assert(endpoint == edge->v1 || endpoint == edge->v2);
+	int v1 = endpoint, v2 = (edge->v1 == endpoint) ? edge->v2 : edge->v1;
+	int p1 = v1;
+	for (int fidx : vertices_[v1].belonging_faces)
+	{
+		if (vertices_[v2].belonging_faces.find(fidx) != vertices_[v2].belonging_faces.end())
+			continue; // skip faces shared by edge
+		int idx = -1;
+		for (int i = 0; i < 3; ++i)
+		{
+			if (faces_[fidx].indices[i] == v1)
+			{
+				idx = i;
+				break;
+			}
+		}
+		if (idx == -1)
+		{
+			cout << "Face "<< fidx << " doesn't include vertex "<< v1 << ". This shouldn't happen." << endl;
+			return false;
+		}
+		int p2 = faces_[fidx].indices[(idx + 1) % 3], p3 = faces_[fidx].indices[(idx + 2) % 3];
+		Vector3d e3 = vertices_[p3].pt - vertices_[p2].pt, e1 = vertices_[p1].pt - vertices_[p2].pt;
+		e3.normalize();
+		Vector3d n = e1 - (e1.dot(e3)) * e3; // plane normal through v1's opposite edge in the face
+		n.normalize();
+		if (n.dot(vtx - vertices_[p2].pt) <= 0) // distance(vtx, plane) <= 0
+			return false;
+	}
+	return true;
+}
 
 bool MeshPartition::runVtxEdgeContractionOnce()
 {
@@ -1022,7 +1072,7 @@ bool MeshPartition::runVtxEdgeContractionOnce()
 	if (clusters_[edge->v1].isValid() && clusters_[edge->v2].isValid())
 	{
 		applyVtxEdgeContraction(edge);
-		init_vtx_num_--;
+		edge_num_--;
 	}
 	else
 	{
@@ -1032,7 +1082,71 @@ bool MeshPartition::runVtxEdgeContractionOnce()
 	return true;
 }
 
+void MeshPartition::mergeVtxClusters(int c1, int c2)
+{
+	for (int vidx : vtx_clusters_[c1].elements)
+	{
+		vtx_clusters_[c1].elements.insert(vidx);
+		vertices_[vidx].vtx_cluster_id = c1;
+	}
+	vtx_clusters_[c2].elements.clear();
+}
+
+void MeshPartition::findVtxClusterNeighbors(int c1)
+{
+	vtx_clusters_[c1].neighbors.clear();
+	for (int vidx : vtx_clusters_[c1].elements)
+	{
+		for (int nidx : vertices_[vidx].neighbors)
+		{
+			int target_id = vertices_[nidx].vtx_cluster_id;
+			if (target_id != c1)
+				vtx_clusters_[c1].neighbors.insert(target_id);
+		}
+	}
+}
+
 void MeshPartition::applyVtxEdgeContraction(Edge* edge)
 {
+	int c1 = edge->v1, c2 = edge->v2;
+	mergeVtxClusters(c1, c2);
+	vtx_clusters_[c1].Q += vtx_clusters_[c2].Q;
 
+	// Get all neighbors of the new merged cluster v1
+	findVtxClusterNeighbors(c1);
+
+	// Remove all old edges of both vertices from the heap and edge list
+	for (Edge* e : cluster_edges_[c1])
+	{
+		int u = (e->v1 == c1) ? e->v2 : e->v1;
+		heap_.remove(e);
+		eraseEdgeFromList(u, e);
+		//if (u != c2)
+		delete e;
+	}
+	for (Edge* e : cluster_edges_[c2])
+	{
+		int u = (e->v1 == c2) ? e->v2 : e->v1;
+		heap_.remove(e);
+		eraseEdgeFromList(u, e);
+		//if (u != c1)
+		delete e;
+	}
+	cluster_edges_[c1].clear();
+	cluster_edges_[c2].clear();
+
+	// Add new edges between v1 and all its new neighbors into edge list
+	for (int cidx : clusters_[c1].neighbors)
+	{
+		Edge *e = new Edge(c1, cidx);
+		cluster_edges_[c1].push_back(e);
+		cluster_edges_[cidx].push_back(e);
+	}
+
+	// Compute all new edges' energies and update/insert them in the max-heap
+	for (Edge* e : cluster_edges_[c1])
+	{
+		computeEdgeEnergy(e);
+		updateEdgeInHeap(e);
+	}
 }

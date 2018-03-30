@@ -10,7 +10,7 @@ class QEMQuadrics
 {
 public:
 	Matrix3d A_;
-	Vector3d b_, v_;
+	Vector3d b_;
 	double c_, energy_;
 	int n_; // not-in-use currently
 
@@ -22,7 +22,7 @@ public:
 	QEMQuadrics(const Vector3d& v1, const Vector3d& v2, const Vector3d& v3); // triangle
 	QEMQuadrics(const Vector3d& v1, const Vector3d& v2); // edge
 	QEMQuadrics(const Vector3d& v1); // point
-	bool optimize();
+	bool optimize(Vector3d& v);
 	double evaluate(const Vector3d& v) const;
 	double operator()(const Vector3d& v) const { return evaluate(v); }
 	void reset(){
