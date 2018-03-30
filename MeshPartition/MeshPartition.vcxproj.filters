@@ -7,10 +7,12 @@
     <ClCompile Include="include\heap\MxHeap.cxx">
       <Filter>heap</Filter>
     </ClCompile>
+    <ClCompile Include="qemquadrics.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="covariance.h" />
     <ClInclude Include="mesh_partition.h" />
+    <ClInclude Include="qemquadrics.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="heap">

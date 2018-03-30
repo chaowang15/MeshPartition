@@ -149,10 +149,12 @@
     <ClCompile Include="include\heap\MxHeap.cxx" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mesh_partition.cpp" />
+    <ClCompile Include="qemquadrics.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="covariance.h" />
     <ClInclude Include="mesh_partition.h" />
+    <ClInclude Include="qemquadrics.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

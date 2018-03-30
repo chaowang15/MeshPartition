@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include "covariance.h"
 #include "MxHeap.h"
+#include "qemquadrics.h"
 
 using namespace std;
 using namespace Eigen;
@@ -61,6 +62,12 @@ struct Cluster
 	bool isValid() { return !elements.empty(); }
 };
 
+struct VertexCluster
+{
+	unordered_set<int> elements, neighbors;
+	QEMQuadrics Q, iniQ;
+};
+
 class MeshPartition
 {
 public:
@@ -69,27 +76,31 @@ public:
 
 	bool readPLY(const string filename);
 	bool writePLYWithFaceColors(const string filename);
+	void runMeshPartition(int cluster_num);
+	void saveClusterFile(const string filename);
+	void runMeshSimplification(double ratio);
+
+private:
 	void getFaceAndVertexNeighbors();
-	bool initPartition();
-	void partition();
+
+	/* Mesh Partition */
+	void initMerging();
+	void merging();
 	void initSwap();
+	void swapAll();
 	void swapOnce();
 	double totalEnergy();
 	void postProcessClusters();
-	void saveClusterFile(const string filename);
-
-private:
-	bool runPartitionOnce();
+	bool runFaceEdgeContractionOnce();
 	void collectClusterEnergies();
 	void updateClusterCovs();
 	void createClusterEdgesAndHeap();
-	void clearClusterEdgesAndHeap();
 	void eraseEdgeFromList(int cidx, Edge* edge);
 	int findClusterNeighbors(int cidx);
 	int findClusterNeighbors(int cidx, unordered_set<int>& cluster_elements, unordered_set<int>& neighbors);
 	void computeEdgeEnergy(Edge* edge);
 	void updateEdgeInHeap(Edge* edge);
-	void applyEdgeContraction(Edge* edge);
+	void applyFaceEdgeContraction(Edge* edge);
 	void mergeClusters(int c1, int c2);
 	void createClusterColors();
 	void findSwapClusters();
@@ -101,12 +112,34 @@ private:
 	int getValidClusterList();
 	void updateFaceClusterIDs();
 
+	/* Clear data */
+	void clearClusterEdgesAndHeap();
+
+	/* Mesh Simplification */
+	void initVtxEdgeContraction();
+	void contractAllVtxEdges();
+	bool runVtxEdgeContractionOnce();
+	void applyVtxEdgeContraction(Edge* edge);
+	void computeVtxEdgeEnergy(Edge* edge);
+
+	inline long long getKey(long long a, long long b){ 
+		return (a << 32) | b; // use one long long integer storing two 32-bit ints as key 
+	};
+	inline void getEdge(long long key, int& v1, int& v2){
+		v2 = key & 0xffffffffLL;
+		v1 = (key >> 32) & 0xffffffffLL;
+	}
+
 public:
 	vector<Vertex> vertices_;
 	vector<Face> faces_;
 	vector<Cluster> clusters_;
+	vector<VertexCluster> vtx_clusters_;
+	unordered_map<long long, vector<int>> edge2faces_;
+
 	int vertex_num_, face_num_;
-	vector<vector<Edge*>> cluster_edges_; // neighbor edges for each vertex
+	int init_vtx_num_, target_vtx_num_;
+	vector<vector<Edge*>> cluster_edges_;
 	MxHeap heap_;
 	int cluster_num_; // target/final cluster number
 	int curr_cluster_num_; // current cluster number
@@ -114,6 +147,7 @@ public:
 	unordered_set<int> clusters_in_swap_; // clusters related during swap
 	unordered_map<int, int> clusters_new2old_; // clusters' new indices [0, cluster_num_) to old ones [0, face_num_)
 	unordered_map<int, int> clusters_old2new_; // clusters' old indices [0, face_num_) to new ones [0, cluster_num_)
+	const double kEdgeCoefficient = 100.0, kPointCoefficient = 1.0;
 };
 
 
