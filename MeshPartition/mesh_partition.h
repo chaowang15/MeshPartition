@@ -120,7 +120,7 @@ private:
 	void contractAllVtxEdges();
 	bool runVtxEdgeContractionOnce();
 	void applyVtxEdgeContraction(Edge* edge);
-	void computeVtxEdgeEnergy(Edge* edge);
+	bool checkVtxEdgeContraction(Edge* edge);
 
 	inline long long getKey(long long a, long long b){ 
 		return (a << 32) | b; // use one long long integer storing two 32-bit ints as key 

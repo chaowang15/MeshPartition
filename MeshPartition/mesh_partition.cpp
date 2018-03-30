@@ -980,8 +980,8 @@ void MeshPartition::initVtxEdgeContraction()
 		int v1, v2;
 		getEdge(key, v1, v2);
 		Edge *e = new Edge(v1, v2);
-		computeVtxEdgeEnergy(e);
-		updateEdgeInHeap(e);
+		if (checkVtxEdgeContraction(e))
+			updateEdgeInHeap(e);
 	}
 	// Save initial quadrics
 	for (int i = 0; i < vertex_num_; ++i)
@@ -989,11 +989,16 @@ void MeshPartition::initVtxEdgeContraction()
 
 }
 
-void MeshPartition::computeVtxEdgeEnergy(Edge* edge)
+bool MeshPartition::checkVtxEdgeContraction(Edge* edge)
 {
+	// check if the edge contraction can cause simplex inversion
+	
+
 	QEMQuadrics Q = vtx_clusters_[edge->v1].Q;
 	Q += vtx_clusters_[edge->v2].Q;
 	double energy = 0;
+
+
 	if (Q.optimize())
 		energy = Q.energy_;
 	else
