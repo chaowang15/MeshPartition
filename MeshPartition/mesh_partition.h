@@ -25,20 +25,12 @@ public:
 
 struct Vertex
 {
-	int vtx_cluster_id;
+	bool is_border;
 	Vector3d pt;
 	Vector3f color, cluster_color;
 	unordered_set<int> neighbors, belonging_faces;
-	Vertex() : vtx_cluster_id(-1) {}
-};
-
-struct VertexCluster
-{
-	bool is_border;
-	Vector3d pt;
-	unordered_set<int> neighbors, belonging_faces, elements;
-	QEMQuadrics Q, iniQ;
-	VertexCluster() : is_border(false) {}
+	QEMQuadrics Q;
+	Vertex() : is_border(false) {}
 };
 
 struct Face
@@ -122,14 +114,13 @@ private:
 	/* Mesh Simplification */
 	void initVtxEdgeContraction();
 	void getBorderVertices();
-	void contractAllVtxEdges();
+	bool contractAllVtxEdges();
 	void initVtxQuadrics();
+	void createInitVtxEdges();
 	bool runVtxEdgeContractionOnce();
-	void applyVtxEdgeContraction(Edge* edge);
+	bool applyVtxEdgeContraction(Edge* edge);
 	bool checkVtxEdgeContraction(Edge* edge);
 	bool isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& vtx);
-	void mergeVtxClusters(int c1, int c2);
-	void findVtxClusterNeighbors(int c1);
 
 	inline long long getKey(long long a, long long b){ 
 		return (a << 32) | b; // use one long long integer storing two 32-bit ints as key 
@@ -143,7 +134,6 @@ public:
 	vector<Vertex> vertices_;
 	vector<Face> faces_;
 	vector<Cluster> clusters_;
-	vector<VertexCluster> vtx_clusters_;
 	unordered_map<long long, vector<int>> edge2faces_;
 
 	int vertex_num_, face_num_;

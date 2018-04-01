@@ -9,6 +9,6 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall")
 
 include_directories(/usr/include/eigen3 include/heap)
 
-set(SOURCES include/heap/MxHeap.cxx covariance.cpp mesh_partition.cpp main.cpp)
+set(SOURCES include/heap/MxHeap.cxx covariance.cpp mesh_partition.cpp qemquadrics.cpp main.cpp)
 
 add_executable(MeshPartition ${SOURCES})
