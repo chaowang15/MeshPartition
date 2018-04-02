@@ -25,12 +25,12 @@ public:
 
 struct Vertex
 {
-	bool is_border, is_valid;
+	bool is_border, is_cluster_border, is_valid;
 	Vector3d pt;
 	Vector3f color, cluster_color;
 	unordered_set<int> neighbors, belonging_faces;
 	QEMQuadrics Q;
-	Vertex() : is_border(false), is_valid(true){}
+	Vertex() : is_border(false), is_cluster_border(false), is_valid(true){}
 };
 
 struct Face
@@ -122,6 +122,8 @@ private:
 	bool applyVtxEdgeContraction(Edge* edge);
 	bool checkVtxEdgeContraction(Edge* edge);
 	bool isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& vtx);
+	void initClusterBorderEdgeContraction();
+	void denoiseClusterBorderEdges();
 
 	/* Small functions */
 	bool checkFaceContainsVertices(int fidx, int v1, int v2){

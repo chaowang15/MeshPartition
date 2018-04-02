@@ -962,8 +962,6 @@ void MeshPartition::runMeshSimplification(double ratio)
 	cout << "Initializing ..." << endl;
 	initVtxEdgeContraction();
 
-	edge_num_ = heap_.size();
-	target_edge_num_ = int(ratio * edge_num_);
 	cout << "Running non-border edge contraction ..." << endl;
 	if (!contractAllVtxEdges())
 	{
@@ -971,12 +969,16 @@ void MeshPartition::runMeshSimplification(double ratio)
 		return;
 	}
 
-	// cout << "Running border edge contraction ..." << endl;
-	// contractAllVtxEdges();
+	// cout << "Running cluster border edge contraction ..." << endl;
+	// initClusterBorderEdgeContraction();
+	// if (!contractAllVtxEdges())
+	// 	cout << "ERROR: Invalid vertex edge contraction. Quitting..." << endl;
 }
 
 bool MeshPartition::contractAllVtxEdges()
 {
+	edge_num_ = heap_.size();
+	target_edge_num_ = int(ratio * edge_num_);
 	while (edge_num_ > target_edge_num_)
 		if (!runVtxEdgeContractionOnce())
 			return false;
@@ -986,9 +988,27 @@ bool MeshPartition::contractAllVtxEdges()
 void MeshPartition::initVtxEdgeContraction()
 {
 	clearClusterEdgesAndHeap();
+	
 	getBorderVertices();
+
+	denoiseClusterBorderEdges();
+
 	initVtxQuadrics();
+	
 	createInitVtxEdges();
+}
+
+void MeshPartition::denoiseClusterBorderEdges()
+{
+	
+
+}
+
+void MeshPartition::initClusterBorderEdgeContraction()
+{
+	clearClusterEdgesAndHeap();
+
+
 }
 
 void MeshPartition::getBorderVertices()
@@ -1022,7 +1042,13 @@ void MeshPartition::getBorderVertices()
 			int f1 = it.second[0], f2 = it.second[1];
 			int c1 = faces_[f1].cluster_id, c2 = faces_[f2].cluster_id;
 			if (c1 != -1 && c2 != -1 && c1 != c2)
+			{
 				flag_border_edge = true; // cluster border
+				if (!vertices_[v1].is_border)
+					vertices_[v1].is_cluster_border = true;
+				if (!vertices_[v2].is_border)
+					vertices_[v2].is_cluster_border = true;
+			}
 		}
 		if (flag_border_edge)
 		{			

@@ -21,7 +21,10 @@ int main(int argc, char** argv)
 	// Mesh partition
 	mesh_partition.runMeshPartition(cluster_num);
 
-	// Save cluster file and mesh model
+	// Mesh simplification
+	mesh_partition.runMeshSimplification(ratio);
+
+	// Save cluster file and mesh models
 	string cluster_fname = fname + ".txt";
 	cout << "Saving cluster file into '" << cluster_fname << "' ... " << endl;
 	mesh_partition.saveClusterFile(cluster_fname);
@@ -30,13 +33,9 @@ int main(int argc, char** argv)
 	cout << "Saving clustered PLY model '" << output_ply_fname << "' ... " << endl;
 	mesh_partition.writePLYWithFaceColors(output_ply_fname);
 
-	// Mesh simplification
-	mesh_partition.runMeshSimplification(ratio);
-
 	string output_simp_ply_fname = fname + "-simp" + string(argv[3]) + ".ply";
 	cout << "Saving simplified PLY model '" << output_simp_ply_fname << "' ... " << endl;
 	mesh_partition.writeSimplifiedPLY(output_simp_ply_fname);
-
 
 	cout << "ALL DONE." << endl;
 	return 0;
