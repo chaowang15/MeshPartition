@@ -265,7 +265,7 @@ bool MeshPartition::readPLY(const string filename)
 			for (int j = 0; j < 3; ++j)
 			{
 				token = strtok(NULL, seps);
-				sscanf(token, "%d", &(faces_[i * 3 + j]));
+				sscanf(token, "%d", &(faces_[i].indices[j]));
 			}
 		}
 	}
@@ -904,7 +904,6 @@ void MeshPartition::runMeshSimplification(double ratio)
 
 	// cout << "Running border edge contraction ..." << endl;
 	// contractAllVtxEdges();
-
 }
 
 bool MeshPartition::contractAllVtxEdges()
@@ -1009,20 +1008,16 @@ bool MeshPartition::checkVtxEdgeContraction(Edge* edge)
 	Q += vertices_[v2].Q;
 	double energy = 0;
 	Vector3d vtx;
-	if (Q.optimize(vtx))
+	if (Q.optimize(vtx, energy))
 	{
 		if (!isContractedVtxValid(edge, v1, vtx) || !isContractedVtxValid(edge, v2, vtx))
 			return false;
-		energy = Q.energy_;
-		vertices_[v1].pt = vtx;
 	}
 	else
 	{ // A is singular, use one of two endpoints minimizing energy as contracted vertex
 		double energy1 = Q(vertices_[v1].pt);
 		double energy2 = Q(vertices_[v2].pt);
 		energy = energy1 < energy2 ? energy1 : energy2;
-		if (energy1 > energy2)
-			vertices_[v1].pt = vertices_[v2].pt;
 	}
 	edge->heap_key(-energy); // it is a max-heap by default but we need a min-heap
 	return true;
@@ -1077,51 +1072,81 @@ bool MeshPartition::runVtxEdgeContractionOnce()
 bool MeshPartition::applyVtxEdgeContraction(Edge* edge)
 {
 	int v1 = edge->v1, v2 = edge->v2;
+	heap_.remove(edge);
+	delete edge;
 	vertices_[v1].Q += vertices_[v2].Q;
 	vertices_[v2].Q.reset();
-	if (!Q.optimize(vertices_[v1].pt))
+	vertices_[v2].is_valid = false;
+	double energy = 0;
+	if (!vertices_[v1].Q.optimize(vertices_[v1].pt, energy))
 	{
-		cout << "Contraction of edge (" << v1 << "," << v2 << ") is invalid. This shouldn't happen." << endl;
-		return false;
+		double energy1 = vertices_[v1].Q(vertices_[v1].pt);
+		double energy2 = vertices_[v1].Q(vertices_[v2].pt);
+		if (energy1 > energy2)
+			vertices_[v1].pt = vertices_[v2].pt;
 	}
-	eraseEdgeFromList(v1, edge);
-	eraseEdgeFromList(v2, edge);
-	heap_.remove(edge);
-	delete edge;	
-	edge_num_--;
 
-	for (Edge* e : cluster_edges_[v2])
+	// Update neighbor list of v2's old neighbors
+	for (int vidx : vertices_[v2].neighbors)
 	{
-		int u = (e->v1 == v2) ? e->v2 : e->v1;
-		if (vertices_[v1].neighbors.find(u) != vertices_[v1].neighbors)
-		{// u is neighbor for both v1 and v2
-			heap_.remove(e);
-			delete e;
-			eraseEdgeFromList(u, e);
+		vertices_[vidx].neighbors.erase(v2);
+		if (vidx != v1)
+		{
+			vertices_[v1].neighbors.insert(vidx);
+			vertices_[vidx].neighbors.insert(v1);
 		}
 	}
-	cluster_edges_[v2].clear();
+	for (int fidx : vertices_[v2].belonging_faces)
+	{
+		if (checkFaceContainsVertices(fidx, v1, v2))
+		{// remove faces containing both v1 and v2
+			for (int i = 0; i < 3; ++i)
+			{
+				faces_[fidx].is_valid = false;
+				vertices_[faces_[fidx].indices[i]].belonging_faces.erase(fidx);
+			}
+		}
+		else
+		{// replace v2 in the face by v1
+			for (int i = 0; i < 3; ++i)
+			{
+				if (faces_[fidx].indices[i] == v2)
+					faces_[fidx].indices[i] = v1;
+			}
+		}
+	}
 
-	// Remove all old edges of both vertices from the heap and edge list
+	// Remove all old edges from v1 and v2
 	for (Edge* e : cluster_edges_[v1])
 	{
 		int u = (e->v1 == v1) ? e->v2 : e->v1;
 		heap_.remove(e);
-		eraseEdgeFromList(u, e);
 		delete e;
+		eraseEdgeFromList(u, e);
+		edge_num_--;
 	}
-
-	// Add new edges between v1 and all its new neighbors into edge list
-	for (int cidx : vertices_[c1].neighbors)
+	for (Edge* e : cluster_edges_[v2])
 	{
-		if (vertices_[cidx].is_border) continue;
-		Edge *e = NULL;
-		e = (c1 < cidx) ? (new Edge(c1, cidx)) : (new Edge(cidx, c1));
+		int u = (e->v1 == v2) ? e->v2 : e->v1;
+		heap_.remove(e);
+		delete e;
+		eraseEdgeFromList(u, e);
+		edge_num_--;
+	}
+	cluster_edges_[v1].clear();
+	cluster_edges_[v2].clear();
+	// Add new edges for v1
+	for (int vidx : vertices_[v1].neighbors)
+	{
+		Edge *e = (v1 < vidx) ? (new Edge(v1, vidx)) : (new Edge(vidx, v1));
 		if (checkVtxEdgeContraction(e))
 		{
 			updateEdgeInHeap(e);
-			cluster_edges_[c1].push_back(e);
-			cluster_edges_[cidx].push_back(e);
+			cluster_edges_[v1].push_back(e);
+			cluster_edges_[vidx].push_back(e);
+			edge_num_++;
 		}
+		else delete e;
 	}
+	return true;
 }

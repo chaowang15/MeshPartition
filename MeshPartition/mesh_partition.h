@@ -25,21 +25,21 @@ public:
 
 struct Vertex
 {
-	bool is_border;
+	bool is_border, is_valid;
 	Vector3d pt;
 	Vector3f color, cluster_color;
 	unordered_set<int> neighbors, belonging_faces;
 	QEMQuadrics Q;
-	Vertex() : is_border(false) {}
+	Vertex() : is_border(false), is_valid(true){}
 };
 
 struct Face
 {
 	int indices[3];
 	int cluster_id;
-	bool is_visited;
+	bool is_visited, is_valid;
 	unordered_set<int> neighbors;
-	Face() : cluster_id(-1), is_visited(false){}
+	Face() : cluster_id(-1), is_visited(false), is_valid(true){}
 };
 
 struct SwapFace
@@ -121,6 +121,16 @@ private:
 	bool applyVtxEdgeContraction(Edge* edge);
 	bool checkVtxEdgeContraction(Edge* edge);
 	bool isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& vtx);
+
+	/* Small functions */
+	bool checkFaceContainsVertices(int fidx, int v1, int v2){
+		return checkFaceContainsVertices(fidx, v1) && checkFaceContainsVertices(fidx, v2);
+	}
+
+	bool checkFaceContainsVertices(int fidx, int v1){
+		return faces_[fidx].indices[0] == v1 || faces_[fidx].indices[1] == v1 || faces_[fidx].indices[2] == v1;
+	}
+
 
 	inline long long getKey(long long a, long long b){ 
 		return (a << 32) | b; // use one long long integer storing two 32-bit ints as key 
