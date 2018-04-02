@@ -11,6 +11,7 @@ int main(int argc, char** argv)
 	int cluster_num = atoi(argv[2]);
 	double ratio = atof(argv[3]);
 	MeshPartition mesh_partition;
+	string fname = ply_fname.substr(0, ply_fname.length() - 4) + "-clusters" + std::to_string(cluster_num);
 
 	// Read model
 	cout << "Reading ply model " << ply_fname << " ..." << endl;
@@ -20,11 +21,7 @@ int main(int argc, char** argv)
 	// Mesh partition
 	mesh_partition.runMeshPartition(cluster_num);
 
-	// Mesh simplification
-	mesh_partition.runMeshSimplification(ratio);
-
 	// Save cluster file and mesh model
-	string fname = ply_fname.substr(0, ply_fname.length() - 4) + "-clusters" + std::to_string(cluster_num);
 	string cluster_fname = fname + ".txt";
 	cout << "Saving cluster file into '" << cluster_fname << "' ... " << endl;
 	mesh_partition.saveClusterFile(cluster_fname);
@@ -32,6 +29,9 @@ int main(int argc, char** argv)
 	string output_ply_fname = fname + ".ply";
 	cout << "Saving clustered PLY model '" << output_ply_fname << "' ... " << endl;
 	mesh_partition.writePLYWithFaceColors(output_ply_fname);
+
+	// Mesh simplification
+	mesh_partition.runMeshSimplification(ratio);
 
 	string output_simp_ply_fname = fname + "-simp.ply";
 	cout << "Saving simplified PLY model '" << output_simp_ply_fname << "' ... " << endl;

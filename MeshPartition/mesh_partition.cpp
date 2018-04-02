@@ -985,7 +985,7 @@ void MeshPartition::initVtxEdgeContraction()
 
 void MeshPartition::getBorderVertices()
 {
-	for (int i = 0; i < cluster_num_; ++i)
+	for (int i = 0; i < face_num_; ++i)
 	{
 		if (clusters_[i].isValid())
 		{
@@ -1000,6 +1000,7 @@ void MeshPartition::getBorderVertices()
 		long long key = it.first;
 		int v1, v2;
 		getEdge(key, v1, v2);
+		if (vertices_[v1].is_border || vertices_[v2].is_border) continue;
 		size_t n = it.second.size();
 		bool flag_border_edge = false;
 		if (n == 0 || n > 2)
@@ -1133,8 +1134,6 @@ bool MeshPartition::runVtxEdgeContractionOnce()
 bool MeshPartition::applyVtxEdgeContraction(Edge* edge)
 {
 	int v1 = edge->v1, v2 = edge->v2;
-	heap_.remove(edge);
-	delete edge;
 	vertices_[v1].Q += vertices_[v2].Q;
 	vertices_[v2].Q.reset();
 	vertices_[v2].is_valid = false;
@@ -1164,7 +1163,9 @@ bool MeshPartition::applyVtxEdgeContraction(Edge* edge)
 			for (int i = 0; i < 3; ++i)
 			{
 				faces_[fidx].is_valid = false;
-				vertices_[faces_[fidx].indices[i]].belonging_faces.erase(fidx);
+				int vidx = faces_[fidx].indices[i];
+				if (vidx != v2)
+					vertices_[vidx].belonging_faces.erase(fidx);
 			}
 		}
 		else
@@ -1172,8 +1173,12 @@ bool MeshPartition::applyVtxEdgeContraction(Edge* edge)
 			for (int i = 0; i < 3; ++i)
 			{
 				if (faces_[fidx].indices[i] == v2)
+				{
 					faces_[fidx].indices[i] = v1;
+					break;
+				}
 			}
+			vertices_[v1].belonging_faces.insert(fidx);
 		}
 	}
 
@@ -1182,16 +1187,16 @@ bool MeshPartition::applyVtxEdgeContraction(Edge* edge)
 	{
 		int u = (e->v1 == v1) ? e->v2 : e->v1;
 		heap_.remove(e);
-		delete e;
 		eraseEdgeFromList(u, e);
+		delete e;
 		edge_num_--;
 	}
 	for (Edge* e : cluster_edges_[v2])
 	{
 		int u = (e->v1 == v2) ? e->v2 : e->v1;
 		heap_.remove(e);
-		delete e;
 		eraseEdgeFromList(u, e);
+		delete e;
 		edge_num_--;
 	}
 	cluster_edges_[v1].clear();
@@ -1199,6 +1204,7 @@ bool MeshPartition::applyVtxEdgeContraction(Edge* edge)
 	// Add new edges for v1
 	for (int vidx : vertices_[v1].neighbors)
 	{
+		if (vertices_[vidx].is_border) continue;
 		Edge *e = (v1 < vidx) ? (new Edge(v1, vidx)) : (new Edge(vidx, v1));
 		if (checkVtxEdgeContraction(e))
 		{
