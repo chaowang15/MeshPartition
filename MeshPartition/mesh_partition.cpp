@@ -327,6 +327,67 @@ bool MeshPartition::writePLYWithFaceColors(const string filename)
 	return true;
 }
 
+bool MeshPartition::writeSimplifiedPLY(const string filename)
+{
+	int new_face_num = 0, new_vertex_num = 0;
+	unordered_map<int, int> vtx_old2new;
+	for (int i = 0; i < vertex_num_; ++i)
+	{
+		if (vertices_[i].is_valid)
+		{
+			vtx_old2new[i] = new_vertex_num;
+			new_vertex_num++;
+		}
+	}
+	for (int i = 0; i < face_num_; ++i)
+	{
+		if (faces_[i].is_valid)
+			new_face_num++;
+	}
+	FILE *fout = NULL;
+	fout = fopen(filename.c_str(), "wb"); // write in binary mode
+	if (fout == NULL)
+	{
+		cout << "Unable to create file " << filename << endl;
+		return false;
+	}
+	// Write headers
+	fprintf(fout, "ply\n");
+	fprintf(fout, "format binary_little_endian 1.0\n");
+	fprintf(fout, "element vertex %d\n", new_vertex_num);
+	fprintf(fout, "property float x\n");
+	fprintf(fout, "property float y\n");
+	fprintf(fout, "property float z\n");
+	fprintf(fout, "element face %d\n", new_face_num);
+	fprintf(fout, "property list uchar int vertex_indices\n");
+	fprintf(fout, "end_header\n");
+
+	float pt3[3];
+	int f3[3];
+	unsigned char kFaceVtxNum = 3;
+	for (int i = 0; i < vertex_num_; ++i)
+	{
+		if (vertices_[i].is_valid)
+		{
+			for (int j = 0; j < 3; ++j)
+				pt3[j] = float(vertices_[i].pt[j]);
+			fwrite(pt3, sizeof(float), 3, fout);
+		}
+	}
+	for (int i = 0; i != face_num_; ++i)
+	{
+		if (faces_[i].is_valid)
+		{
+			for (int j = 0; j < 3; ++j)
+				f3[j] = vtx_old2new[faces_[i].indices[j]];
+			fwrite(&kFaceVtxNum, sizeof(unsigned char), 1, fout);
+			fwrite(f3, sizeof(int), 3, fout);
+		}
+	}
+	fclose(fout);
+	return true;
+}
+
 
 void MeshPartition::saveClusterFile(const string filename)
 {

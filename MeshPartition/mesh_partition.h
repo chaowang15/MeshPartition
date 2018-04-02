@@ -75,6 +75,7 @@ public:
 	void runMeshPartition(int cluster_num);
 	void saveClusterFile(const string filename);
 	void runMeshSimplification(double ratio);
+	bool writeSimplifiedPLY(const string filename);
 
 private:
 	void getFaceAndVertexNeighbors();
