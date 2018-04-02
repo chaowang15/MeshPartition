@@ -312,15 +312,10 @@ bool MeshPartition::writePLYWithFaceColors(const string filename)
 		if (cidx == -1)
 		{
 			cout << "WARNING: face " << i << " doesn't belong to any cluster!" << endl;
+			continue;
 		}
-		else
-		{
-			for (int j = 0; j < 3; ++j)
-			{
-				int c = int(clusters_[cidx].color[j] * 255);
-				rgba[j] = (unsigned char)c;
-			}
-		}
+		for (int j = 0; j < 3; ++j)
+			rgba[j] = (unsigned char)(clusters_[cidx].color[j] * 255);
 		fwrite(rgba, sizeof(unsigned char), 4, fout);
 	}
 	fclose(fout);
@@ -360,11 +355,16 @@ bool MeshPartition::writeSimplifiedPLY(const string filename)
 	fprintf(fout, "property float z\n");
 	fprintf(fout, "element face %d\n", new_face_num);
 	fprintf(fout, "property list uchar int vertex_indices\n");
+	fprintf(fout, "property uchar red\n"); // face color
+	fprintf(fout, "property uchar green\n");
+	fprintf(fout, "property uchar blue\n");
+	fprintf(fout, "property uchar alpha\n");
 	fprintf(fout, "end_header\n");
 
 	float pt3[3];
 	int f3[3];
 	unsigned char kFaceVtxNum = 3;
+	unsigned char rgba[4] = { 255 };
 	for (int i = 0; i < vertex_num_; ++i)
 	{
 		if (vertices_[i].is_valid)
@@ -382,6 +382,15 @@ bool MeshPartition::writeSimplifiedPLY(const string filename)
 				f3[j] = vtx_old2new[faces_[i].indices[j]];
 			fwrite(&kFaceVtxNum, sizeof(unsigned char), 1, fout);
 			fwrite(f3, sizeof(int), 3, fout);
+			int cidx = faces_[i].cluster_id;
+			if (cidx == -1)
+			{
+				cout << "WARNING: face " << i << " doesn't belong to any cluster!" << endl;
+				continue;
+			}
+			for (int j = 0; j < 3; ++j)
+				rgba[j] = (unsigned char)(clusters_[cidx].color[j] * 255);
+			fwrite(rgba, sizeof(unsigned char), 4, fout);
 		}
 	}
 	fclose(fout);
@@ -416,14 +425,16 @@ void MeshPartition::getFaceAndVertexNeighbors()
 		for (int j = 0; j < 3; ++j)
 			fa[j] = faces_[i].indices[j];
 		std::sort(fa.begin(), fa.end());
-		for (int j = 0; j < 3; ++j){
+		for (int j = 0; j < 3; ++j)
+		{
 			vertices_[fa[j]].neighbors.insert(fa[(j + 1) % 3]);
 			vertices_[fa[j]].neighbors.insert(fa[(j + 2) % 3]);
 			vertices_[fa[j]].belonging_faces.insert(i);
 			int a = (j == 2) ? fa[0] : fa[j];
 			int b = (j == 2) ? fa[j] : fa[j + 1];
 			long long edge = getKey(a, b);
-			for (int fidx : edge2faces_[edge]){
+			for (int fidx : edge2faces_[edge])
+			{
 				faces_[fidx].neighbors.insert(i);
 				faces_[i].neighbors.insert(fidx);
 			}
@@ -703,7 +714,6 @@ void MeshPartition::createClusterColors()
 */
 /************************************************************************/
 
-
 void MeshPartition::swapOnce()
 {
 	initSwap();
@@ -802,7 +812,6 @@ double MeshPartition::totalEnergy()
 	return energy;
 }
 
-
 /************************************************************************/
 /* Post-processing after swap
 */
@@ -899,7 +908,6 @@ void MeshPartition::updateFaceClusterIDs()
 		}
 	}
 }
-
 
 void MeshPartition::splitCluster(int original_cidx, vector<unordered_set<int>>& connected_components)
 {
@@ -1000,7 +1008,6 @@ void MeshPartition::getBorderVertices()
 		long long key = it.first;
 		int v1, v2;
 		getEdge(key, v1, v2);
-		if (vertices_[v1].is_border || vertices_[v2].is_border) continue;
 		size_t n = it.second.size();
 		bool flag_border_edge = false;
 		if (n == 0 || n > 2)
@@ -1018,7 +1025,10 @@ void MeshPartition::getBorderVertices()
 				flag_border_edge = true; // cluster border
 		}
 		if (flag_border_edge)
-			vertices_[v1].is_border = vertices_[v2].is_border = true;
+		{			
+			vertices_[v1].is_border = true;
+			vertices_[v2].is_border = true;
+		}
 	}
 }
 

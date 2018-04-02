@@ -33,7 +33,7 @@ int main(int argc, char** argv)
 	// Mesh simplification
 	mesh_partition.runMeshSimplification(ratio);
 
-	string output_simp_ply_fname = fname + "-simp.ply";
+	string output_simp_ply_fname = fname + "-simp" + string(argv[3]) + ".ply";
 	cout << "Saving simplified PLY model '" << output_simp_ply_fname << "' ... " << endl;
 	mesh_partition.writeSimplifiedPLY(output_simp_ply_fname);
 
