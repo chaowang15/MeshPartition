@@ -9,6 +9,8 @@
 MeshPartition::MeshPartition()
 {
 	vertex_num_ = face_num_ = 0;
+	flag_check_face_inversion_ = true;
+	flag_simp_only_borderedges_ = false;
 }
 
 MeshPartition::~MeshPartition()
@@ -422,6 +424,7 @@ void MeshPartition::getFaceAndVertexNeighbors()
 	vector<int> fa(3);
 	for (int i = 0; i < face_num_; i++)
 	{
+		if (!faces_[i].is_valid) continue;
 		for (int j = 0; j < 3; ++j)
 			fa[j] = faces_[i].indices[j];
 		std::sort(fa.begin(), fa.end());
@@ -956,33 +959,43 @@ void MeshPartition::splitCluster(int original_cidx, vector<unordered_set<int>>& 
 */
 /************************************************************************/
 
-void MeshPartition::runMeshSimplification(double ratio)
+void MeshPartition::runClusterInnerEdgeSimp(double ratio)
 {
 	cout << "Running mesh simplification..." << endl;
 	cout << "Initializing ..." << endl;
+	flag_check_face_inversion_ = true;
+	flag_simp_only_borderedges_ = false; // do NOT simplify any border edge
 	initVtxEdgeContraction();
 
 	cout << "Running non-border edge contraction ..." << endl;
+	edge_num_ = heap_.size();
+	target_edge_num_ = int(ratio * edge_num_);
 	if (!contractAllVtxEdges())
-	{
 		cout << "ERROR: Invalid vertex edge contraction. Quitting..." << endl;
-		return;
-	}
-
-	// cout << "Running cluster border edge contraction ..." << endl;
-	// initClusterBorderEdgeContraction();
-	// if (!contractAllVtxEdges())
-	// 	cout << "ERROR: Invalid vertex edge contraction. Quitting..." << endl;
 }
+
+void MeshPartition::runClusterBorderEdgeSimp(double ratio)
+{
+	cout << "Running border edge contraction ..." << endl;
+	flag_check_face_inversion_ = false;
+	flag_simp_only_borderedges_ = true;
+	initClusterBorderEdgeContraction();
+
+	edge_num_ = heap_.size();
+	target_edge_num_ = int(ratio * edge_num_);
+	if (!contractAllVtxEdges())
+		cout << "ERROR: Invalid vertex edge contraction. Quitting..." << endl;
+}
+
 
 bool MeshPartition::contractAllVtxEdges()
 {
-	edge_num_ = heap_.size();
-	target_edge_num_ = int(ratio * edge_num_);
 	while (edge_num_ > target_edge_num_)
+	{
 		if (!runVtxEdgeContractionOnce())
 			return false;
-	return edge_num_ == target_edge_num_;
+	}
+	return edge_num_ <= target_edge_num_;
 }
 
 void MeshPartition::initVtxEdgeContraction()
@@ -991,24 +1004,92 @@ void MeshPartition::initVtxEdgeContraction()
 	
 	getBorderVertices();
 
-	denoiseClusterBorderEdges();
-
 	initVtxQuadrics();
 	
 	createInitVtxEdges();
 }
-
-void MeshPartition::denoiseClusterBorderEdges()
-{
-	
-
-}
-
 void MeshPartition::initClusterBorderEdgeContraction()
 {
 	clearClusterEdgesAndHeap();
 
+	getBorderEdges();
 
+	// Initialize quadrics with border edges only
+	for (int i = 0; i < vertex_num_; ++i)
+		vertices_[i].Q.reset();
+	for (long long key : border_edges_)
+	{
+		int v1, v2;
+		getEdge(key, v1, v2);
+		QEMQuadrics Q(vertices_[v1].pt, vertices_[v2].pt);
+		vertices_[v1].Q += Q;
+		vertices_[v2].Q += Q;
+	}
+
+	// Initialize border edges in heap
+	if (cluster_edges_.empty())
+		cluster_edges_.resize(vertex_num_);
+	for (long long key : border_edges_)
+	{
+		int v1, v2;
+		getEdge(key, v1, v2);
+		Edge *e = new Edge(v1, v2);
+		if (checkVtxEdgeContraction(e))
+		{
+			updateEdgeInHeap(e);
+			cluster_edges_[e->v1].push_back(e);
+			cluster_edges_[e->v2].push_back(e);
+		}
+	}
+}
+
+void MeshPartition::getBorderEdges()
+{
+	// Get mapping edges -> faces
+	edge2faces_.clear();
+	vector<int> fa(3);
+	for (int i = 0; i < face_num_; i++)
+	{
+		if (!faces_[i].is_valid) continue;
+		for (int j = 0; j < 3; ++j)
+			fa[j] = faces_[i].indices[j];
+		std::sort(fa.begin(), fa.end());
+		for (int j = 0; j < 3; ++j)
+		{
+			int a = (j == 2) ? fa[0] : fa[j];
+			int b = (j == 2) ? fa[j] : fa[j + 1];
+			long long edge = getKey(a, b);
+			edge2faces_[edge].push_back(i);
+		}
+	}
+	// Get border edges
+	for (auto it : edge2faces_)
+	{
+		long long key = it.first;
+		int v1, v2;
+		getEdge(key, v1, v2);
+		size_t n = it.second.size();
+		bool flag_border_edge = false;
+		if (n == 0 || n > 2)
+		{
+			cout << "Edge (" << v1 << "," << v2 << ") ";
+			if (n == 0) cout << "has empty face list. This shouldn't happen." << endl;
+			else cout << "is a non-manifold edge." << endl;
+		}
+		else if (n == 1) flag_border_edge = true; // mesh border
+		else
+		{
+			int f1 = it.second[0], f2 = it.second[1];
+			int c1 = faces_[f1].cluster_id, c2 = faces_[f2].cluster_id;
+			if (c1 != -1 && c2 != -1 && c1 != c2)
+				flag_border_edge = true; // cluster border
+		}
+		if (flag_border_edge)
+		{
+			border_edges_.insert(key);
+			vertices_[v1].is_border = vertices_[v2].is_border = true;
+		}
+	}
 }
 
 void MeshPartition::getBorderVertices()
@@ -1042,19 +1123,10 @@ void MeshPartition::getBorderVertices()
 			int f1 = it.second[0], f2 = it.second[1];
 			int c1 = faces_[f1].cluster_id, c2 = faces_[f2].cluster_id;
 			if (c1 != -1 && c2 != -1 && c1 != c2)
-			{
 				flag_border_edge = true; // cluster border
-				if (!vertices_[v1].is_border)
-					vertices_[v1].is_cluster_border = true;
-				if (!vertices_[v2].is_border)
-					vertices_[v2].is_cluster_border = true;
-			}
 		}
 		if (flag_border_edge)
-		{			
-			vertices_[v1].is_border = true;
-			vertices_[v2].is_border = true;
-		}
+			vertices_[v1].is_border = vertices_[v2].is_border = true;
 	}
 }
 
@@ -1108,7 +1180,7 @@ bool MeshPartition::checkVtxEdgeContraction(Edge* edge)
 	Vector3d vtx;
 	if (Q.optimize(vtx, energy))
 	{
-		if (!isContractedVtxValid(edge, v1, vtx) || !isContractedVtxValid(edge, v2, vtx))
+		if (flag_check_face_inversion_ && (!isContractedVtxValid(edge, v1, vtx) || !isContractedVtxValid(edge, v2, vtx)))
 			return false;
 	}
 	else
@@ -1237,10 +1309,18 @@ bool MeshPartition::applyVtxEdgeContraction(Edge* edge)
 	}
 	cluster_edges_[v1].clear();
 	cluster_edges_[v2].clear();
+
 	// Add new edges for v1
 	for (int vidx : vertices_[v1].neighbors)
 	{
-		if (vertices_[vidx].is_border) continue;
+		if (flag_simp_only_borderedges_)
+		{
+			if (!vertices_[vidx].is_border) continue;
+		}
+		else
+		{
+			if (vertices_[vidx].is_border) continue;
+		}
 		Edge *e = (v1 < vidx) ? (new Edge(v1, vidx)) : (new Edge(vidx, v1));
 		if (checkVtxEdgeContraction(e))
 		{
