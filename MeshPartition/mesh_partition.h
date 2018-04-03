@@ -127,6 +127,7 @@ private:
 	bool isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& vtx);
 	void createBorderHeapEdgeForCluster(int cluster_idx);
 	void contractBorderEdges();
+	void getAllEdgesForCluster(int cluster_idx);
 
 	/* Small functions */
 	bool checkFaceContainsVertices(int fidx, int v1, int v2){
@@ -150,7 +151,6 @@ public:
 	vector<Face> faces_;
 	vector<Cluster> clusters_;
 	unordered_map<long long, vector<int>> edge2faces_;
-	unordered_map<int, unordered_set<long long>> cluster2borderedges_;
 
 	int vertex_num_, face_num_;
 	int edge_num_, target_edge_num_;

@@ -1036,6 +1036,11 @@ void MeshPartition::initBorderEdgeContraction()
 	// Get mapping edges -> faces
 	edge2faces_.clear();
 	vector<int> fa(3);
+	for (int i = 0; i < cluster_num_; ++i)
+	{
+		int cidx = clusters_new2old_[i];
+		clusters_[cidx].elements.clear();
+	}
 	for (int i = 0; i < face_num_; i++)
 	{
 		if (!faces_[i].is_valid) continue;
@@ -1049,6 +1054,8 @@ void MeshPartition::initBorderEdgeContraction()
 			long long edge = getKey(a, b);
 			edge2faces_[edge].push_back(i);
 		}
+		int cidx = faces_[i].cluster_id;
+		clusters_[cidx].elements.insert(i);
 	}
 	// Initialize quadrics
 	for (int i = 0; i < vertex_num_; ++i)
@@ -1070,22 +1077,14 @@ void MeshPartition::initBorderEdgeContraction()
 			if (n == 0) cout << "has empty face list. This shouldn't happen." << endl;
 			else cout << "is a non-manifold edge." << endl;
 		}
-		else if (n == 1)
-		{	// mesh border
-			flag_border_edge = true;
-			int cidx = faces_[it.second[0]].cluster_id;
-			cluster2borderedges_[cidx].insert(key);
-		}
+		else if (n == 1) 
+			flag_border_edge = true; // mesh border
 		else
 		{
 			int f1 = it.second[0], f2 = it.second[1];
 			int c1 = faces_[f1].cluster_id, c2 = faces_[f2].cluster_id;
 			if (c1 != -1 && c2 != -1 && c1 != c2)
-			{	// cluster border
-				flag_border_edge = true;
-				cluster2borderedges_[c1].insert(key);
-				cluster2borderedges_[c2].insert(key);
-			}
+				flag_border_edge = true; // cluster border
 		}
 		if (flag_border_edge)
 		{
@@ -1164,6 +1163,29 @@ void MeshPartition::createInnerHeapEdgeForCluster(int cluster_idx)
 			cluster_edges_[v2].push_back(e);
 		}
 	}
+}
+
+void MeshPartition::getAllEdgesForCluster(int cluster_idx)
+{
+	edge2faces_.clear();
+	vector<int> fa(3);
+	for (int fidx : clusters_[cluster_idx].elements)
+	{
+		if (!faces_[i].is_valid) continue;
+		for (int j = 0; j < 3; ++j)
+			fa[j] = faces_[i].indices[j];
+		std::sort(fa.begin(), fa.end());
+		for (int j = 0; j < 3; ++j)
+		{
+			int a = (j == 2) ? fa[0] : fa[j];
+			int b = (j == 2) ? fa[j] : fa[j + 1];
+			long long edge = getKey(a, b);
+			edge2faces_[edge].push_back(i);
+		}
+		int cidx = faces_[i].cluster_id;
+		clusters_[cidx].elements.insert(i);
+	}
+
 }
 
 void MeshPartition::createBorderHeapEdgeForCluster(int cluster_idx)
