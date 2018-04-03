@@ -112,18 +112,19 @@ private:
 	void updateFaceClusterIDs();
 
 	/* Clear data */
-	void clearClusterEdgesAndHeap();
+	void clearClusterEdges();
+	void clearHeap();
 
 	/* Mesh Simplification */
 	void getBorderVertices();
-	void getBorderEdges();
+	void initBorderEdgeContraction();
 	void contractInnerEdges();
 	void initInnerEdgeQuadrics();
 	void createInnerHeapEdgeForCluster(int cluster_idx);
-	void applyVtxEdgeContraction(Edge* edge, int cluster_idx);
+	void applyInnerEdgeContraction(Edge* edge, int cluster_idx);
+	void applyBorderEdgeContraction(Edge* edge, int cluster_idx);
 	bool checkEdgeContraction(Edge* edge);
 	bool isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& vtx);
-	void initBorderEdgeQuadrics();
 	void createBorderHeapEdgeForCluster(int cluster_idx);
 	void contractBorderEdges();
 
@@ -136,10 +137,9 @@ private:
 		return faces_[fidx].indices[0] == v1 || faces_[fidx].indices[1] == v1 || faces_[fidx].indices[2] == v1;
 	}
 
-
 	inline long long getKey(long long a, long long b){ 
 		return (a << 32) | b; // use one long long integer storing two 32-bit ints as key 
-	};
+	}
 	inline void getEdge(long long key, int& v1, int& v2){
 		v2 = int(key & 0xffffffffLL);
 		v1 = int(key >> 32);
@@ -150,7 +150,7 @@ public:
 	vector<Face> faces_;
 	vector<Cluster> clusters_;
 	unordered_map<long long, vector<int>> edge2faces_;
-	unordered_set<long long> border_edges_;
+	unordered_map<int, unordered_set<long long>> cluster2borderedges_;
 
 	int vertex_num_, face_num_;
 	int edge_num_, target_edge_num_;
