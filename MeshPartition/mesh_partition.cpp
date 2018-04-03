@@ -9,8 +9,7 @@
 MeshPartition::MeshPartition()
 {
 	vertex_num_ = face_num_ = 0;
-	flag_check_face_inversion_ = true;
-	flag_simp_only_borderedges_ = false;
+	simp_ratio_ = 1.0;
 }
 
 MeshPartition::~MeshPartition()
@@ -961,59 +960,74 @@ void MeshPartition::splitCluster(int original_cidx, vector<unordered_set<int>>& 
 
 void MeshPartition::runClusterInnerEdgeSimp(double ratio)
 {
-	cout << "Running mesh simplification..." << endl;
-	cout << "Initializing ..." << endl;
-	flag_check_face_inversion_ = true;
-	flag_simp_only_borderedges_ = false; // do NOT simplify any border edge
-	initVtxEdgeContraction();
-
 	cout << "Running non-border edge contraction ..." << endl;
-	edge_num_ = heap_.size();
-	target_edge_num_ = int(ratio * edge_num_);
-	if (!contractAllVtxEdges())
-		cout << "ERROR: Invalid vertex edge contraction. Quitting..." << endl;
+	getBorderVertices();
+	initInnerEdgeQuadrics();
+	simp_ratio_ = ratio;
+	contractInnerEdges();
+}
+
+void MeshPartition::contractInnerEdges()
+{
+	for (int i = 0; i < cluster_num_; ++i)
+	{
+		clearClusterEdgesAndHeap();
+		int a = heap_.size();
+		int cidx = clusters_new2old_[i];
+		createInnerHeapEdgeForCluster(cidx);
+		edge_num_ = heap_.size();
+		target_edge_num_ = int(simp_ratio_ * edge_num_);
+		while (edge_num_ > target_edge_num_)
+		{
+			Edge* edge = (Edge*)heap_.extract();
+			if (!edge)
+			{
+				cout << "  ERROR: No edge exists in the heap. Quitting..." << endl;
+				return;
+			}
+			applyVtxEdgeContraction(edge, cidx);
+		}
+		assert(edge_num_ <= target_edge_num_);
+	}
 }
 
 void MeshPartition::runClusterBorderEdgeSimp(double ratio)
 {
 	cout << "Running border edge contraction ..." << endl;
-	flag_check_face_inversion_ = false;
-	flag_simp_only_borderedges_ = true;
-	initClusterBorderEdgeContraction();
-
-	edge_num_ = heap_.size();
-	target_edge_num_ = int(ratio * edge_num_);
-	if (!contractAllVtxEdges())
-		cout << "ERROR: Invalid vertex edge contraction. Quitting..." << endl;
-}
-
-
-bool MeshPartition::contractAllVtxEdges()
-{
-	while (edge_num_ > target_edge_num_)
-	{
-		if (!runVtxEdgeContractionOnce())
-			return false;
-	}
-	return edge_num_ <= target_edge_num_;
-}
-
-void MeshPartition::initVtxEdgeContraction()
-{
-	clearClusterEdgesAndHeap();
-	
-	getBorderVertices();
-
-	initVtxQuadrics();
-	
-	createInitVtxEdges();
-}
-void MeshPartition::initClusterBorderEdgeContraction()
-{
-	clearClusterEdgesAndHeap();
-
 	getBorderEdges();
+	initBorderEdgeQuadrics();
+	simp_ratio_ = ratio;
+	contractBorderEdges();
+}
 
+void MeshPartition::contractBorderEdges()
+{
+	for (int i = 0; i < cluster_num_; ++i)
+	{
+		clearClusterEdgesAndHeap();
+		int a = heap_.size();
+		int cidx = clusters_new2old_[i];
+		createBorderHeapEdgeForCluster(cidx);
+		edge_num_ = heap_.size();
+		target_edge_num_ = int(simp_ratio_ * edge_num_);
+		while (edge_num_ > target_edge_num_)
+		{
+			Edge* edge = (Edge*)heap_.extract();
+			if (!edge)
+			{
+				cout << "  ERROR: No edge exists in the heap. Quitting..." << endl;
+				return;
+			}
+			applyVtxEdgeContraction(edge, cidx);
+		}
+		assert(edge_num_ <= target_edge_num_);
+	}
+}
+
+
+
+void MeshPartition::initBorderEdgeQuadrics()
+{
 	// Initialize quadrics with border edges only
 	for (int i = 0; i < vertex_num_; ++i)
 		vertices_[i].Q.reset();
@@ -1024,22 +1038,6 @@ void MeshPartition::initClusterBorderEdgeContraction()
 		QEMQuadrics Q(vertices_[v1].pt, vertices_[v2].pt);
 		vertices_[v1].Q += Q;
 		vertices_[v2].Q += Q;
-	}
-
-	// Initialize border edges in heap
-	if (cluster_edges_.empty())
-		cluster_edges_.resize(vertex_num_);
-	for (long long key : border_edges_)
-	{
-		int v1, v2;
-		getEdge(key, v1, v2);
-		Edge *e = new Edge(v1, v2);
-		if (checkVtxEdgeContraction(e))
-		{
-			updateEdgeInHeap(e);
-			cluster_edges_[e->v1].push_back(e);
-			cluster_edges_[e->v2].push_back(e);
-		}
 	}
 }
 
@@ -1062,6 +1060,8 @@ void MeshPartition::getBorderEdges()
 			edge2faces_[edge].push_back(i);
 		}
 	}
+	for (int i = 0; i < vertex_num_; ++i)
+		vertices_[i].cluster_id = -1;
 	// Get border edges
 	for (auto it : edge2faces_)
 	{
@@ -1087,7 +1087,20 @@ void MeshPartition::getBorderEdges()
 		if (flag_border_edge)
 		{
 			border_edges_.insert(key);
-			vertices_[v1].is_border = vertices_[v2].is_border = true;
+			if (n == 1)
+			{
+				int cidx = faces_[it.second[0]].cluster_id;
+				if (vertices_[v1].cluster_id == -1)
+					vertices_[v1].cluster_id = cidx;
+				else if (vertices_[v1].cluster_id != cidx)
+					vertices_[v1].cluster_id = -2; // -2 means this vertex is on the border of two clusters
+				if (vertices_[v2].cluster_id == -1)
+					vertices_[v2].cluster_id = cidx;
+				else if (vertices_[v2].cluster_id != cidx)
+					vertices_[v2].cluster_id = -2;
+			}
+			else
+				vertices_[v1].cluster_id = vertices_[v2].cluster_id = -2;
 		}
 	}
 }
@@ -1102,8 +1115,6 @@ void MeshPartition::getBorderVertices()
 				faces_[fidx].cluster_id = i;
 		}
 	}
-	if (edge2faces_.empty())
-		getFaceAndVertexNeighbors();
 	for (auto it : edge2faces_)
 	{
 		long long key = it.first;
@@ -1122,15 +1133,27 @@ void MeshPartition::getBorderVertices()
 		{
 			int f1 = it.second[0], f2 = it.second[1];
 			int c1 = faces_[f1].cluster_id, c2 = faces_[f2].cluster_id;
-			if (c1 != -1 && c2 != -1 && c1 != c2)
-				flag_border_edge = true; // cluster border
+			if (c1 == -1 || c2 == -1)
+				cout << "Face " << f1 << " or " << f2 << " do not belong to any cluster. This shouldn't happen." << endl;
+			else
+			{
+				if (c1 != c2)
+					flag_border_edge = true; // cluster border
+				else
+					vertices_[v1].cluster_id = vertices_[v2].cluster_id = c1; // inner-cluster edge
+			}
 		}
 		if (flag_border_edge)
 			vertices_[v1].is_border = vertices_[v2].is_border = true;
 	}
+	for (int i = 0; i < vertex_num_; ++i)
+	{
+		if (vertices_[i].is_border)
+			vertices_[i].cluster_id = -1;
+	}
 }
 
-void MeshPartition::createInitVtxEdges()
+void MeshPartition::createInnerHeapEdgeForCluster(int cluster_idx)
 {
 	if (cluster_edges_.empty())
 		cluster_edges_.resize(vertex_num_);
@@ -1139,18 +1162,39 @@ void MeshPartition::createInitVtxEdges()
 		long long key = it.first;
 		int v1, v2;
 		getEdge(key, v1, v2);
-		if (vertices_[v1].is_border || vertices_[v2].is_border) continue;
+		if (vertices_[v1].is_border || vertices_[v2].is_border || 
+			vertices_[v1].cluster_id != cluster_idx || vertices_[v2].cluster_id != cluster_idx) 
+			continue;
 		Edge *e = new Edge(v1, v2);
-		if (checkVtxEdgeContraction(e))
+		if (checkEdgeContraction(e))
 		{
 			updateEdgeInHeap(e);
-			cluster_edges_[e->v1].push_back(e);
-			cluster_edges_[e->v2].push_back(e);			
+			cluster_edges_[v1].push_back(e);
+			cluster_edges_[v2].push_back(e);			
 		}
 	}
 }
 
-void MeshPartition::initVtxQuadrics()
+void MeshPartition::createBorderHeapEdgeForCluster(int cluster_idx)
+{
+	// Initialize border edges in heap
+	if (cluster_edges_.empty())
+		cluster_edges_.resize(vertex_num_);
+	for (long long key : border_edges_)
+	{
+		int v1, v2;
+		getEdge(key, v1, v2);
+		Edge *e = new Edge(v1, v2);
+		if (checkEdgeContraction(e))
+		{
+			updateEdgeInHeap(e);
+			cluster_edges_[e->v1].push_back(e);
+			cluster_edges_[e->v2].push_back(e);
+		}
+	}
+}
+
+void MeshPartition::initInnerEdgeQuadrics()
 {
 	// face quadrics
 	for (int i = 0; i < face_num_; ++i)
@@ -1171,7 +1215,7 @@ void MeshPartition::initVtxQuadrics()
 	}
 }
 
-bool MeshPartition::checkVtxEdgeContraction(Edge* edge)
+bool MeshPartition::checkEdgeContraction(Edge* edge)
 {
 	int v1 = edge->v1, v2 = edge->v2;
 	QEMQuadrics Q = vertices_[v1].Q;
@@ -1180,7 +1224,7 @@ bool MeshPartition::checkVtxEdgeContraction(Edge* edge)
 	Vector3d vtx;
 	if (Q.optimize(vtx, energy))
 	{
-		if (flag_check_face_inversion_ && (!isContractedVtxValid(edge, v1, vtx) || !isContractedVtxValid(edge, v2, vtx)))
+		if (!isContractedVtxValid(edge, v1, vtx) || !isContractedVtxValid(edge, v2, vtx))
 			return false;
 	}
 	else
@@ -1228,18 +1272,7 @@ bool MeshPartition::isContractedVtxValid(Edge* edge, int endpoint, const Vector3
 	return true;
 }
 
-bool MeshPartition::runVtxEdgeContractionOnce()
-{
-	Edge* edge = (Edge*)heap_.extract();
-	if (!edge)
-	{
-		cout << "  ERROR: No edge exists in the heap. Quitting..." << endl;
-		return false;
-	}
-	return applyVtxEdgeContraction(edge);
-}
-
-bool MeshPartition::applyVtxEdgeContraction(Edge* edge)
+void MeshPartition::applyVtxEdgeContraction(Edge* edge, int cluster_idx)
 {
 	int v1 = edge->v1, v2 = edge->v2;
 	vertices_[v1].Q += vertices_[v2].Q;
@@ -1313,16 +1346,9 @@ bool MeshPartition::applyVtxEdgeContraction(Edge* edge)
 	// Add new edges for v1
 	for (int vidx : vertices_[v1].neighbors)
 	{
-		if (flag_simp_only_borderedges_)
-		{
-			if (!vertices_[vidx].is_border) continue;
-		}
-		else
-		{
-			if (vertices_[vidx].is_border) continue;
-		}
+		if (vertices_[vidx].cluster_id != cluster_idx) continue;
 		Edge *e = (v1 < vidx) ? (new Edge(v1, vidx)) : (new Edge(vidx, v1));
-		if (checkVtxEdgeContraction(e))
+		if (checkEdgeContraction(e))
 		{
 			updateEdgeInHeap(e);
 			cluster_edges_[v1].push_back(e);
@@ -1331,5 +1357,4 @@ bool MeshPartition::applyVtxEdgeContraction(Edge* edge)
 		}
 		else delete e;
 	}
-	return true;
 }

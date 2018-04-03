@@ -26,11 +26,12 @@ public:
 struct Vertex
 {
 	bool is_border, is_valid;
+	int cluster_id;
 	Vector3d pt;
 	Vector3f color, cluster_color;
 	unordered_set<int> neighbors, belonging_faces;
 	QEMQuadrics Q;
-	Vertex() : is_border(false), is_valid(true){}
+	Vertex() : is_border(false), is_valid(true), cluster_id(-1){}
 };
 
 struct Face
@@ -114,17 +115,17 @@ private:
 	void clearClusterEdgesAndHeap();
 
 	/* Mesh Simplification */
-	void initVtxEdgeContraction();
 	void getBorderVertices();
 	void getBorderEdges();
-	bool contractAllVtxEdges();
-	void initVtxQuadrics();
-	void createInitVtxEdges();
-	bool runVtxEdgeContractionOnce();
-	bool applyVtxEdgeContraction(Edge* edge);
-	bool checkVtxEdgeContraction(Edge* edge);
+	void contractInnerEdges();
+	void initInnerEdgeQuadrics();
+	void createInnerHeapEdgeForCluster(int cluster_idx);
+	void applyVtxEdgeContraction(Edge* edge, int cluster_idx);
+	bool checkEdgeContraction(Edge* edge);
 	bool isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& vtx);
-	void initClusterBorderEdgeContraction();
+	void initBorderEdgeQuadrics();
+	void createBorderHeapEdgeForCluster(int cluster_idx);
+	void contractBorderEdges();
 
 	/* Small functions */
 	bool checkFaceContainsVertices(int fidx, int v1, int v2){
@@ -162,7 +163,7 @@ public:
 	unordered_map<int, int> clusters_new2old_; // clusters' new indices [0, cluster_num_) to old ones [0, face_num_)
 	unordered_map<int, int> clusters_old2new_; // clusters' old indices [0, face_num_) to new ones [0, cluster_num_)
 	const double kEdgeCoefficient = 100.0, kPointCoefficient = 1.0;
-	bool flag_check_face_inversion_, flag_simp_only_borderedges_;
+	double simp_ratio_;
 };
 
 

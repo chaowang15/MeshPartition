@@ -29,17 +29,17 @@ int main(int argc, char** argv)
 	cout << "Saving clustered PLY model '" << output_ply_fname << "' ... " << endl;
 	mesh_partition.writePLYWithFaceColors(output_ply_fname);
 
-	// Mesh simplification
+	// Plane inner edge simplification
 	mesh_partition.runClusterInnerEdgeSimp(inside_edge_ratio);
 	string inner_simp_fname = fname + "-inner" + string(argv[3]) + ".ply";
 	cout << "Saving simplified PLY model '" << inner_simp_fname << "' ... " << endl;
 	mesh_partition.writeSimplifiedPLY(inner_simp_fname);
 
-
-	mesh_partition.runClusterBorderEdgeSimp(border_edge_ratio);
-	string border_simp_fname = fname + "-inner" + string(argv[3]) + "-border" + string(argv[4]) + ".ply";
-	cout << "Saving simplified PLY model '" << border_simp_fname << "' ... " << endl;
-	mesh_partition.writeSimplifiedPLY(border_simp_fname);
+	//// Plane border edge simplification
+	//mesh_partition.runClusterBorderEdgeSimp(border_edge_ratio);
+	//string border_simp_fname = fname + "-inner" + string(argv[3]) + "-border" + string(argv[4]) + ".ply";
+	//cout << "Saving simplified PLY model '" << border_simp_fname << "' ... " << endl;
+	//mesh_partition.writeSimplifiedPLY(border_simp_fname);
 
 	cout << "ALL DONE." << endl;
 	return 0;
