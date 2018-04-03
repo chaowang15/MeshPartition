@@ -10,6 +10,7 @@ MeshPartition::MeshPartition()
 {
 	vertex_num_ = face_num_ = 0;
 	simp_ratio_ = 1.0;
+	flag_check_face_inversion_ = true;
 }
 
 MeshPartition::~MeshPartition()
@@ -974,6 +975,7 @@ void MeshPartition::runClusterInnerEdgeSimp(double ratio)
 void MeshPartition::runClusterBorderEdgeSimp(double ratio)
 {
 	cout << "Running border edge contraction ..." << endl;
+	flag_check_face_inversion_ = false;
 	initBorderEdgeContraction();
 	simp_ratio_ = ratio;
 	contractBorderEdges();
@@ -1007,6 +1009,7 @@ void MeshPartition::contractBorderEdges()
 {
 	for (int i = 0; i < cluster_num_; ++i)
 	{
+		cout << "   Processing cluster " << i << "/" << cluster_num_ << endl;
 		clearClusterEdges();
 		clearHeap();
 		int cidx = clusters_new2old_[i];
@@ -1213,7 +1216,7 @@ bool MeshPartition::checkEdgeContraction(Edge* edge)
 	Vector3d vtx;
 	if (Q.optimize(vtx, energy))
 	{
-		if (!isContractedVtxValid(edge, v1, vtx) || !isContractedVtxValid(edge, v2, vtx))
+		if (flag_check_face_inversion_ && (!isContractedVtxValid(edge, v1, vtx) || !isContractedVtxValid(edge, v2, vtx)))
 			return false;
 	}
 	else
@@ -1405,20 +1408,20 @@ void MeshPartition::applyBorderEdgeContraction(Edge* edge, int cluster_idx)
 		int u = (e->v1 == v1) ? e->v2 : e->v1;
 		heap_.remove(e);
 		eraseEdgeFromList(u, e);
-		delete e;
 		edge_num_--;
 		long long key = getKey(e->v1, e->v2);
 		cluster2borderedges_[cluster_idx].erase(key);
+		delete e;
 	}
 	for (Edge* e : cluster_edges_[v2])
 	{
 		int u = (e->v1 == v2) ? e->v2 : e->v1;
 		heap_.remove(e);
 		eraseEdgeFromList(u, e);
-		delete e;
 		edge_num_--;
 		long long key = getKey(e->v1, e->v2);
 		cluster2borderedges_[cluster_idx].erase(key);
+		delete e;
 	}
 	cluster_edges_[v1].clear();
 	cluster_edges_[v2].clear();

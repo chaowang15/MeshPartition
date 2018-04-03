@@ -164,6 +164,7 @@ public:
 	unordered_map<int, int> clusters_old2new_; // clusters' old indices [0, face_num_) to new ones [0, cluster_num_)
 	const double kEdgeCoefficient = 100.0, kPointCoefficient = 1.0;
 	double simp_ratio_;
+	bool flag_check_face_inversion_;
 };
 
 
