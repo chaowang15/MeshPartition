@@ -162,9 +162,10 @@ public:
 	unordered_set<int> clusters_in_swap_; // clusters related during swap
 	unordered_map<int, int> clusters_new2old_; // clusters' new indices [0, cluster_num_) to old ones [0, face_num_)
 	unordered_map<int, int> clusters_old2new_; // clusters' old indices [0, face_num_) to new ones [0, cluster_num_)
-	const double kEdgeCoefficient = 100.0, kPointCoefficient = 1.0;
 	double simp_ratio_;
 	bool flag_check_face_inversion_;
+	const double kEdgeCoefficient = 100.0, kPointCoefficient = 1.0;
+	const int kMinEdgeNum = 5;
 };
 
 

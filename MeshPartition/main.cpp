@@ -17,14 +17,13 @@ int main(int argc, char** argv)
 	cout << "Reading ply model " << ply_fname << " ..." << endl;
 	if (!mesh_partition.readPLY(ply_fname))
 		return -1;
+	cout << "#Vertices: " << mesh_partition.vertex_num_ << ", #Faces: " << mesh_partition.face_num_ << endl;
 
 	// Mesh partition
 	mesh_partition.runMeshPartition(cluster_num);
-
 	string cluster_fname = fname + ".txt";
 	cout << "Saving cluster file into '" << cluster_fname << "' ... " << endl;
 	mesh_partition.saveClusterFile(cluster_fname);
-
 	string output_ply_fname = fname + ".ply";
 	cout << "Saving clustered PLY model '" << output_ply_fname << "' ... " << endl;
 	mesh_partition.writePLYWithFaceColors(output_ply_fname);

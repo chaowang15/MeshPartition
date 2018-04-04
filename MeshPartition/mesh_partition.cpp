@@ -985,12 +985,13 @@ void MeshPartition::contractInnerEdges()
 {
 	for (int i = 0; i < cluster_num_; ++i)
 	{
+		cout << "   Processing cluster " << i << "/" << cluster_num_ << endl;
 		clearClusterEdges();
 		clearHeap();
 		int cidx = clusters_new2old_[i];
 		createInnerHeapEdgeForCluster(cidx);
 		edge_num_ = heap_.size();
-		target_edge_num_ = int(simp_ratio_ * edge_num_);
+		target_edge_num_ = max(int(simp_ratio_ * edge_num_), kMinEdgeNum);
 		while (edge_num_ > target_edge_num_)
 		{
 			Edge* edge = (Edge*)heap_.extract();
@@ -1015,7 +1016,7 @@ void MeshPartition::contractBorderEdges()
 		int cidx = clusters_new2old_[i];
 		createBorderHeapEdgeForCluster(cidx);
 		edge_num_ = heap_.size();
-		target_edge_num_ = int(simp_ratio_ * edge_num_);
+		target_edge_num_ = max(int(simp_ratio_ * edge_num_), kMinEdgeNum);
 		while (edge_num_ > target_edge_num_)
 		{
 			Edge* edge = (Edge*)heap_.extract();
@@ -1152,8 +1153,8 @@ void MeshPartition::createInnerHeapEdgeForCluster(int cluster_idx)
 		long long key = it.first;
 		int v1, v2;
 		getEdge(key, v1, v2);
-		if (vertices_[v1].is_border || vertices_[v2].is_border ||
-		        vertices_[v1].cluster_id != cluster_idx || vertices_[v2].cluster_id != cluster_idx)
+		if (vertices_[v1].is_border || vertices_[v2].is_border || 
+			vertices_[v1].cluster_id != cluster_idx || vertices_[v2].cluster_id != cluster_idx)
 			continue;
 		Edge *e = new Edge(v1, v2);
 		if (checkEdgeContraction(e))
@@ -1171,39 +1172,58 @@ void MeshPartition::getAllEdgesForCluster(int cluster_idx)
 	vector<int> fa(3);
 	for (int fidx : clusters_[cluster_idx].elements)
 	{
-		if (!faces_[i].is_valid) continue;
+		if (!faces_[fidx].is_valid) continue;
 		for (int j = 0; j < 3; ++j)
-			fa[j] = faces_[i].indices[j];
+			fa[j] = faces_[fidx].indices[j];
 		std::sort(fa.begin(), fa.end());
 		for (int j = 0; j < 3; ++j)
 		{
 			int a = (j == 2) ? fa[0] : fa[j];
 			int b = (j == 2) ? fa[j] : fa[j + 1];
 			long long edge = getKey(a, b);
-			edge2faces_[edge].push_back(i);
+			edge2faces_[edge].push_back(fidx);
 		}
-		int cidx = faces_[i].cluster_id;
-		clusters_[cidx].elements.insert(i);
 	}
-
 }
 
 void MeshPartition::createBorderHeapEdgeForCluster(int cluster_idx)
 {
-	// Initialize border edges in heap
-	if (cluster_edges_.empty())
-		cluster_edges_.resize(vertex_num_);
-	for (long long key : cluster2borderedges_[cluster_idx])
+	getAllEdgesForCluster(cluster_idx);
+
+	// Get border edges for this cluster
+	for (auto it : edge2faces_)
 	{
+		long long key = it.first;
 		int v1, v2;
 		getEdge(key, v1, v2);
-		Edge *e = new Edge(v1, v2);
-		if (checkEdgeContraction(e))
+		size_t n = it.second.size();
+		bool flag_border_edge = false;
+		if (n == 0 || n > 2) // for debug
 		{
-			updateEdgeInHeap(e);
-			cluster_edges_[v1].push_back(e);
-			cluster_edges_[v2].push_back(e);
-			vertices_[v1].cluster_id = vertices_[v2].cluster_id = cluster_idx;
+			cout << "Edge (" << v1 << "," << v2 << ") ";
+			if (n == 0) cout << "has empty face list. This shouldn't happen." << endl;
+			else cout << "is a non-manifold edge." << endl;
+		}
+		else if (n == 1) flag_border_edge = true; // mesh border
+		else
+		{
+			int f1 = it.second[0], f2 = it.second[1];
+			int c1 = faces_[f1].cluster_id, c2 = faces_[f2].cluster_id;
+			if (c1 == -1 || c2 == -1) // for debug
+				cout << "Face " << f1 << " or " << f2 << " do not belong to any cluster. This shouldn't happen." << endl;
+			else if (c1 != c2)
+				flag_border_edge = true; // cluster border
+		}
+		if (flag_border_edge)
+		{
+			Edge *e = new Edge(v1, v2);
+			if (checkEdgeContraction(e))
+			{
+				updateEdgeInHeap(e);
+				cluster_edges_[v1].push_back(e);
+				cluster_edges_[v2].push_back(e);
+				vertices_[v1].cluster_id = vertices_[v2].cluster_id = cluster_idx;
+			}
 		}
 	}
 }
@@ -1409,6 +1429,8 @@ void MeshPartition::applyBorderEdgeContraction(Edge* edge, int cluster_idx)
 				if (vidx != v2)
 					vertices_[vidx].belonging_faces.erase(fidx);
 			}
+			int cidx = faces_[fidx].cluster_id; // erase the face from cluster
+			clusters_[cidx].elements.erase(fidx);
 		}
 		else
 		{	// replace v2 in the face by v1
@@ -1432,7 +1454,6 @@ void MeshPartition::applyBorderEdgeContraction(Edge* edge, int cluster_idx)
 		eraseEdgeFromList(u, e);
 		edge_num_--;
 		long long key = getKey(e->v1, e->v2);
-		cluster2borderedges_[cluster_idx].erase(key);
 		delete e;
 	}
 	for (Edge* e : cluster_edges_[v2])
@@ -1442,7 +1463,6 @@ void MeshPartition::applyBorderEdgeContraction(Edge* edge, int cluster_idx)
 		eraseEdgeFromList(u, e);
 		edge_num_--;
 		long long key = getKey(e->v1, e->v2);
-		cluster2borderedges_[cluster_idx].erase(key);
 		delete e;
 	}
 	cluster_edges_[v1].clear();
@@ -1459,22 +1479,6 @@ void MeshPartition::applyBorderEdgeContraction(Edge* edge, int cluster_idx)
 			cluster_edges_[v1].push_back(e);
 			cluster_edges_[vidx].push_back(e);
 			edge_num_++;
-
-			// Save the new border edge in the border edge list
-			long long key = getKey(e->v1, e->v2);
-			int last_cidx = -1;
-			for (int fidx : vertices_[e->v1].belonging_faces)
-			{
-				if (vertices_[e->v2].belonging_faces.find(fidx) != vertices_[e->v2].belonging_faces.end())
-				{
-					int cidx = faces_[fidx].cluster_id;
-					if (cidx != last_cidx)
-					{
-						cluster2borderedges_[cidx].insert(key);
-						last_cidx = cidx;
-					}
-				}
-			}
 		}
 		else delete e;
 	}
