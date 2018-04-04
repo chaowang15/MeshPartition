@@ -975,7 +975,7 @@ void MeshPartition::runClusterInnerEdgeSimp(double ratio)
 void MeshPartition::runClusterBorderEdgeSimp(double ratio)
 {
 	cout << "Running border edge contraction ..." << endl;
-	flag_check_face_inversion_ = false;
+	//flag_check_face_inversion_ = false;
 	initBorderEdgeContraction();
 	simp_ratio_ = ratio;
 	contractBorderEdges();
@@ -983,10 +983,10 @@ void MeshPartition::runClusterBorderEdgeSimp(double ratio)
 
 void MeshPartition::contractInnerEdges()
 {
+	clearClusterEdges();
 	for (int i = 0; i < cluster_num_; ++i)
 	{
-		cout << "   Processing cluster " << i << "/" << cluster_num_ << endl;
-		clearClusterEdges();
+		//cout << "   Processing cluster " << i << "/" << cluster_num_ << endl;
 		clearHeap();
 		int cidx = clusters_new2old_[i];
 		createInnerHeapEdgeForCluster(cidx);
@@ -1010,7 +1010,7 @@ void MeshPartition::contractBorderEdges()
 {
 	for (int i = 0; i < cluster_num_; ++i)
 	{
-		cout << "   Processing cluster " << i << "/" << cluster_num_ << endl;
+		//cout << "   Processing cluster " << i << "/" << cluster_num_ << endl;
 		clearClusterEdges();
 		clearHeap();
 		int cidx = clusters_new2old_[i];
