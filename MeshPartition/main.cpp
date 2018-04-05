@@ -35,6 +35,7 @@ int main(int argc, char** argv)
 	mesh_partition.writeSimplifiedPLY(inner_simp_fname);
 
 	// Plane border edge simplification
+	mesh_partition.border_simp_method_ = 0;
 	mesh_partition.runClusterBorderEdgeSimp(border_edge_ratio);
 	string border_simp_fname = fname + "-inner" + string(argv[3]) + "-border" + string(argv[4]) + ".ply";
 	cout << "Saving simplified PLY model '" << border_simp_fname << "' ... " << endl;

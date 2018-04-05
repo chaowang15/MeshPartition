@@ -122,11 +122,12 @@ private:
 	void initInnerEdgeQuadrics();
 	void createInnerHeapEdgeForCluster(int cluster_idx);
 	void applyInnerEdgeContraction(Edge* edge, int cluster_idx);
-	void applyBorderEdgeContraction(Edge* edge, int cluster_idx);
+	void applyBorderEdgeContractionByCluster(Edge* edge, int cluster_idx);
 	bool checkEdgeContraction(Edge* edge);
 	bool isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& vtx);
 	void createBorderHeapEdgeForCluster(int cluster_idx);
-	void contractBorderEdges();
+	void contractBorderEdgesByCluster();
+	void contractAllBorderEdges();
 	void getAllEdgesForCluster(int cluster_idx);
 
 	/* Small functions */
@@ -166,6 +167,7 @@ public:
 	bool flag_check_face_inversion_;
 	const double kEdgeCoefficient = 100.0, kPointCoefficient = 1.0;
 	const int kMinEdgeNum = 5;
+	int border_simp_method_; // 0 means simplifying all borders, 1 means simplifying borders cluster by cluster
 };
 
 

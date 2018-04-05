@@ -11,6 +11,7 @@ MeshPartition::MeshPartition()
 	vertex_num_ = face_num_ = 0;
 	simp_ratio_ = 1.0;
 	flag_check_face_inversion_ = true;
+	border_simp_method_ = 0;
 }
 
 MeshPartition::~MeshPartition()
@@ -972,13 +973,16 @@ void MeshPartition::runClusterInnerEdgeSimp(double ratio)
 	contractInnerEdges();
 }
 
-void MeshPartition::runClusterBorderEdgeSimp(double ratio)
+void MeshPartition::runClusterBorderEdgeSimp(double ratio, int method)
 {
 	cout << "Running border edge contraction ..." << endl;
 	//flag_check_face_inversion_ = false;
 	initBorderEdgeContraction();
 	simp_ratio_ = ratio;
-	contractBorderEdges();
+	if (border_simp_method_ == 0)
+		contractAllBorderEdges();
+	else
+		contractBorderEdgesByCluster();
 }
 
 void MeshPartition::contractInnerEdges()
@@ -1006,7 +1010,26 @@ void MeshPartition::contractInnerEdges()
 	}
 }
 
-void MeshPartition::contractBorderEdges()
+void MeshPartition::contractAllBorderEdges()
+{
+	clearClusterEdges();
+	clearHeap();
+	edge_num_ = heap_.size();
+	target_edge_num_ = max(int(simp_ratio_ * edge_num_), kMinEdgeNum);
+	while (edge_num_ > target_edge_num_)
+	{
+		Edge* edge = (Edge*)heap_.extract();
+		if (!edge)
+		{
+			cout << "  ERROR: No edge exists in the heap. Quitting..." << endl;
+			return;
+		}
+		applybor(edge, cidx);
+	}
+	assert(edge_num_ <= target_edge_num_);
+}
+
+void MeshPartition::contractBorderEdgesByCluster()
 {
 	for (int i = 0; i < cluster_num_; ++i)
 	{
@@ -1025,7 +1048,7 @@ void MeshPartition::contractBorderEdges()
 				cout << "  ERROR: No edge exists in the heap. Quitting..." << endl;
 				return;
 			}
-			applyBorderEdgeContraction(edge, cidx);
+			applyBorderEdgeContractionByCluster(edge, cidx);
 		}
 		assert(edge_num_ <= target_edge_num_);
 	}
@@ -1306,6 +1329,13 @@ bool MeshPartition::isContractedVtxValid(Edge* edge, int endpoint, const Vector3
 	return true;
 }
 
+/************************************************************************/
+/* Apply edge contraction for inner edge, border edge by cluster, and 
+*  global border edge.
+*  Note that these cases are very similar except some details.
+*/
+/************************************************************************/
+
 void MeshPartition::applyInnerEdgeContraction(Edge* edge, int cluster_idx)
 {
 	int v1 = edge->v1, v2 = edge->v2;
@@ -1393,7 +1423,7 @@ void MeshPartition::applyInnerEdgeContraction(Edge* edge, int cluster_idx)
 	}
 }
 
-void MeshPartition::applyBorderEdgeContraction(Edge* edge, int cluster_idx)
+void MeshPartition::applyBorderEdgeContractionByCluster(Edge* edge, int cluster_idx)
 {
 	int v1 = edge->v1, v2 = edge->v2;
 	vertices_[v1].Q += vertices_[v2].Q;
@@ -1453,7 +1483,6 @@ void MeshPartition::applyBorderEdgeContraction(Edge* edge, int cluster_idx)
 		heap_.remove(e);
 		eraseEdgeFromList(u, e);
 		edge_num_--;
-		long long key = getKey(e->v1, e->v2);
 		delete e;
 	}
 	for (Edge* e : cluster_edges_[v2])
@@ -1462,7 +1491,6 @@ void MeshPartition::applyBorderEdgeContraction(Edge* edge, int cluster_idx)
 		heap_.remove(e);
 		eraseEdgeFromList(u, e);
 		edge_num_--;
-		long long key = getKey(e->v1, e->v2);
 		delete e;
 	}
 	cluster_edges_[v1].clear();
@@ -1483,3 +1511,4 @@ void MeshPartition::applyBorderEdgeContraction(Edge* edge, int cluster_idx)
 		else delete e;
 	}
 }
+
