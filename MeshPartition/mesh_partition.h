@@ -10,9 +10,12 @@
 #include "covariance.h"
 #include "MxHeap.h"
 #include "qemquadrics.h"
+// #include <chrono> // timer
 
 using namespace std;
 using namespace Eigen;
+
+enum EdgeSimpType {INNER_EDGES = 0, ALL_BORDER_EDGES, BORDER_EDGES_BY_CLUSTER};
 
 ///////////////////////////////////////////////////////////
 /* Edge and its comparator (used in min-heap) */
@@ -78,6 +81,8 @@ public:
 	void runClusterInnerEdgeSimp(double ratio);
 	void runClusterBorderEdgeSimp(double ratio);
 	bool writeSimplifiedPLY(const string filename);
+	void saveSimplifiedClusterFile(const string filename);
+
 
 private:
 	void getFaceAndVertexNeighbors();
@@ -108,7 +113,7 @@ private:
 	bool checkClusterConnectivity(int cidx, vector<unordered_set<int>>& connected_components);
 	int traverseFaceBFS(int fidx, int cidx, unordered_set<int>& component);
 	void splitCluster(int original_cidx, vector<unordered_set<int>>& connected_components);
-	int getValidClusterList();
+	int getCluterIdxMappingBtwnOldAndNew();
 	void updateFaceClusterIDs();
 
 	/* Clear data */
@@ -121,21 +126,22 @@ private:
 	void contractInnerEdges();
 	void initInnerEdgeQuadrics();
 	void createInnerHeapEdgeForCluster(int cluster_idx);
-	void applyInnerEdgeContraction(Edge* edge, int cluster_idx);
+	void applyVtxEdgeContraction(Edge* edge, int cluster_idx = -1);
 	void applyBorderEdgeContractionByCluster(Edge* edge, int cluster_idx);
 	bool checkEdgeContraction(Edge* edge);
 	bool isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& vtx);
 	void createBorderHeapEdgeForCluster(int cluster_idx);
+	void createAllBorderHeapEdges();
 	void contractBorderEdgesByCluster();
 	void contractAllBorderEdges();
 	void getAllEdgesForCluster(int cluster_idx);
 
 	/* Small functions */
-	bool checkFaceContainsVertices(int fidx, int v1, int v2){
+	inline bool checkFaceContainsVertices(int fidx, int v1, int v2){
 		return checkFaceContainsVertices(fidx, v1) && checkFaceContainsVertices(fidx, v2);
 	}
 
-	bool checkFaceContainsVertices(int fidx, int v1){
+	inline bool checkFaceContainsVertices(int fidx, int v1){
 		return faces_[fidx].indices[0] == v1 || faces_[fidx].indices[1] == v1 || faces_[fidx].indices[2] == v1;
 	}
 
@@ -151,7 +157,9 @@ public:
 	vector<Vertex> vertices_;
 	vector<Face> faces_;
 	vector<Cluster> clusters_;
-	unordered_map<long long, vector<int>> edge2faces_;
+	unordered_map<long long, vector<int>> edge2faces_; // mapping edge -> faces
+	unordered_map<int, vector<long long>> cluster2edges_; // mapping cluster -> edges
+	unordered_set<long long> border_edges_;
 
 	int vertex_num_, face_num_;
 	int edge_num_, target_edge_num_;
@@ -164,10 +172,10 @@ public:
 	unordered_map<int, int> clusters_new2old_; // clusters' new indices [0, cluster_num_) to old ones [0, face_num_)
 	unordered_map<int, int> clusters_old2new_; // clusters' old indices [0, face_num_) to new ones [0, cluster_num_)
 	double simp_ratio_;
-	bool flag_check_face_inversion_;
 	const double kEdgeCoefficient = 100.0, kPointCoefficient = 1.0;
 	const int kMinEdgeNum = 5;
-	int border_simp_method_; // 0 means simplifying all borders, 1 means simplifying borders cluster by cluster
+	EdgeSimpType edge_simp_type_;
+	// std::chrono::high_resolution_clock::time_point start_time_; // timer
 };
 
 

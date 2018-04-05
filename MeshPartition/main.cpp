@@ -20,8 +20,9 @@ int main(int argc, char** argv)
 	cout << "#Vertices: " << mesh_partition.vertex_num_ << ", #Faces: " << mesh_partition.face_num_ << endl;
 
 	// Mesh partition
+	cout << "Running partition (target #cluster: " << cluster_num << " ) ..." << endl;
 	mesh_partition.runMeshPartition(cluster_num);
-	string cluster_fname = fname + ".txt";
+	string cluster_fname = fname + "-cluster.txt";
 	cout << "Saving cluster file into '" << cluster_fname << "' ... " << endl;
 	mesh_partition.saveClusterFile(cluster_fname);
 	string output_ply_fname = fname + ".ply";
@@ -29,17 +30,23 @@ int main(int argc, char** argv)
 	mesh_partition.writePLYWithFaceColors(output_ply_fname);
 
 	// Plane inner edge simplification
+	cout << "Running inner edge contraction ..." << endl;
 	mesh_partition.runClusterInnerEdgeSimp(inside_edge_ratio);
 	string inner_simp_fname = fname + "-inner" + string(argv[3]) + ".ply";
 	cout << "Saving simplified PLY model '" << inner_simp_fname << "' ... " << endl;
 	mesh_partition.writeSimplifiedPLY(inner_simp_fname);
 
 	// Plane border edge simplification
-	mesh_partition.border_simp_method_ = 0;
+	cout << "Running border edge contraction ..." << endl;
+	mesh_partition.edge_simp_type_ = ALL_BORDER_EDGES;
 	mesh_partition.runClusterBorderEdgeSimp(border_edge_ratio);
-	string border_simp_fname = fname + "-inner" + string(argv[3]) + "-border" + string(argv[4]) + ".ply";
+	string border_simp_name = fname + "-inner" + string(argv[3]) + "-border" + string(argv[4]);
+	string border_simp_fname = border_simp_name + ".ply";
 	cout << "Saving simplified PLY model '" << border_simp_fname << "' ... " << endl;
 	mesh_partition.writeSimplifiedPLY(border_simp_fname);
+	string simp_cluster_fname = border_simp_name + "-cluster.txt";
+	cout << "Saving simplified mesh's cluster file into '" << simp_cluster_fname << "' ... " << endl;
+	mesh_partition.saveSimplifiedClusterFile(simp_cluster_fname);
 
 	cout << "ALL DONE." << endl;
 	return 0;
