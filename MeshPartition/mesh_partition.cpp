@@ -1328,12 +1328,24 @@ void MeshPartition::createBorderHeapEdgeForCluster(int cluster_idx)
 
 void MeshPartition::initInnerEdgeQuadrics()
 {
+	const double kCons = 4 * sqrt(3);
 	// face quadrics
 	for (int i = 0; i < face_num_; ++i)
 	{
 		QEMQuadrics Q(vertices_[faces_[i].indices[0]].pt, vertices_[faces_[i].indices[1]].pt, vertices_[faces_[i].indices[2]].pt);
+		Q *= kFaceCoefficient;
+		// Compute a measure of triangle compactness to give large weight to a triangle close to equilateral, and small
+		// weight to a triangle whose vertices are close to colinear.
+		Vector3d e0 = vertices_[faces_[i].indices[1]].pt - vertices_[faces_[i].indices[0]].pt;
+		Vector3d e1 = vertices_[faces_[i].indices[2]].pt - vertices_[faces_[i].indices[1]].pt;
+		Vector3d e2 = vertices_[faces_[i].indices[2]].pt - vertices_[faces_[i].indices[0]].pt;
+		double area = (e0.cross(e2)).norm() / 2;
+		double coef = kCons * area / (e0.squaredNorm() + e1.squaredNorm() + e2.squaredNorm());
+		//double coef = 1.0;
+		Q *= coef;
 		for (int j = 0; j < 3; ++j)
 			vertices_[faces_[i].indices[j]].Q += Q;
+
 	}
 	const double kFaceFactor = 1.0 / 3; // normalizing factor from the paper
 	for (int i = 0; i < vertex_num_; ++i)
@@ -1356,11 +1368,15 @@ bool MeshPartition::checkEdgeContraction(Edge* edge)
 	Vector3d vtx;
 	if (Q.optimize(vtx, energy))
 	{
-		if (!isContractedVtxValid(edge, v1, vtx) || !isContractedVtxValid(edge, v2, vtx))
-			return false;
+		// Preserve topology (non-manifold, etc) : skip an edge with more than 2 common neighbors 
+		if (getCommonNeighborNum(v1, v2) > 2) return false;
+		
+		// do not contract an edge which will cause face flipping/inversion
+		if (!isContractedVtxValid(edge, v1, vtx) || !isContractedVtxValid(edge, v2, vtx)) return false;
 	}
 	else
-	{	// A is singular, use one of two endpoints minimizing energy as contracted vertex
+	{	
+		// A is singular, use one of two endpoints minimizing energy as contracted vertex
 		double energy1 = Q(vertices_[v1].pt);
 		double energy2 = Q(vertices_[v2].pt);
 		energy = energy1 < energy2 ? energy1 : energy2;
@@ -1402,6 +1418,17 @@ bool MeshPartition::isContractedVtxValid(Edge* edge, int endpoint, const Vector3
 			return false;
 	}
 	return true;
+}
+
+int MeshPartition::getCommonNeighborNum(int v1, int v2)
+{
+	int count = 0;
+	for (int vidx : vertices_[v1].neighbors)
+	{
+		if (vertices_[v2].neighbors.find(vidx) != vertices_[v2].neighbors.end())
+			count++;
+	}
+	return count;
 }
 
 /************************************************************************/

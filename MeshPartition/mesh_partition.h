@@ -135,6 +135,7 @@ private:
 	void contractBorderEdgesByCluster();
 	void contractAllBorderEdges();
 	void getAllEdgesForCluster(int cluster_idx);
+	int getCommonNeighborNum(int v1, int v2);
 
 	/* Small functions */
 	inline bool checkFaceContainsVertices(int fidx, int v1, int v2){
@@ -172,7 +173,7 @@ public:
 	unordered_map<int, int> clusters_new2old_; // clusters' new indices [0, cluster_num_) to old ones [0, face_num_)
 	unordered_map<int, int> clusters_old2new_; // clusters' old indices [0, face_num_) to new ones [0, cluster_num_)
 	double simp_ratio_;
-	const double kEdgeCoefficient = 100.0, kPointCoefficient = 1.0;
+	const double kFaceCoefficient = 1.0, kEdgeCoefficient = 10.0, kPointCoefficient = 1.0;
 	const int kMinEdgeNum = 5;
 	EdgeSimpType edge_simp_type_;
 	// std::chrono::high_resolution_clock::time_point start_time_; // timer
