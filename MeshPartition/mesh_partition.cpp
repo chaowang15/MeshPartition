@@ -1335,15 +1335,15 @@ void MeshPartition::initInnerEdgeQuadrics()
 	{
 		QEMQuadrics Q(vertices_[faces_[i].indices[0]].pt, vertices_[faces_[i].indices[1]].pt, vertices_[faces_[i].indices[2]].pt);
 		Q *= kFaceCoefficient;
-		// Compute a measure of triangle compactness to give large weight to a triangle close to equilateral, and small
-		// weight to a triangle whose vertices are close to colinear.
-		Vector3d e0 = vertices_[faces_[i].indices[1]].pt - vertices_[faces_[i].indices[0]].pt;
-		Vector3d e1 = vertices_[faces_[i].indices[2]].pt - vertices_[faces_[i].indices[1]].pt;
-		Vector3d e2 = vertices_[faces_[i].indices[2]].pt - vertices_[faces_[i].indices[0]].pt;
-		double area = (e0.cross(e2)).norm() / 2;
-		double coef = kCons * area / (e0.squaredNorm() + e1.squaredNorm() + e2.squaredNorm());
-		//double coef = 1.0;
-		Q *= coef;
+
+		// // Compute a measure of triangle compactness to give large weight to a triangle close to equilateral, and small
+		// // weight to a triangle whose vertices are close to colinear.
+		// Vector3d e0 = vertices_[faces_[i].indices[1]].pt - vertices_[faces_[i].indices[0]].pt;
+		// Vector3d e1 = vertices_[faces_[i].indices[2]].pt - vertices_[faces_[i].indices[1]].pt;
+		// Vector3d e2 = vertices_[faces_[i].indices[2]].pt - vertices_[faces_[i].indices[0]].pt;
+		// double area = (e0.cross(e2)).norm() / 2;
+		// double coef = kCons * area / (e0.squaredNorm() + e1.squaredNorm() + e2.squaredNorm());
+		// Q *= coef;
 		for (int j = 0; j < 3; ++j)
 			vertices_[faces_[i].indices[j]].Q += Q;
 
@@ -1366,28 +1366,36 @@ void MeshPartition::initInnerEdgeQuadrics()
 bool MeshPartition::checkEdgeContraction(Edge* edge)
 {
 	int v1 = edge->v1, v2 = edge->v2;
+
+	// Preserve topology (non-manifold, etc) : skip an edge with more than 2 common neighbors
+	if (flag_preserve_topology_ && getCommonNeighborNum(v1, v2) > 2) return false;
+
 	QEMQuadrics Q = vertices_[v1].Q;
 	Q += vertices_[v2].Q;
 	double energy = 0;
 	Vector3d vtx;
-	if (Q.optimize(vtx, energy))
+	if (!Q.optimize(vtx, energy))
 	{
-		// Preserve topology (non-manifold, etc) : skip an edge with more than 2 common neighbors 
-		if (flag_preserve_topology_ && getCommonNeighborNum(v1, v2) > 2) return false;
-		
-		// do not contract an edge which will cause face flipping/inversion
-		if (!isContractedVtxValid(edge, v1, vtx) || !isContractedVtxValid(edge, v2, vtx)) return false;
-	}
-	else
-	{	
-		// Use edge center as the target vertex
+		// // Strategy 1: Use edge center as the target vertex
 		vtx = (vertices_[v1].pt + vertices_[v2].pt) / 2;
 		energy = Q.evaluate(vtx);
-		//// A is singular, use one of two endpoints minimizing energy as contracted vertex
-		//double energy1 = Q(vertices_[v1].pt);
-		//double energy2 = Q(vertices_[v2].pt);
-		//energy = energy1 < energy2 ? energy1 : energy2;
+
+		// // Strategy 2: Use endpoint with smaller energy as the target vertex
+		// double energy1 = Q(vertices_[v1].pt);
+		// double energy2 = Q(vertices_[v2].pt);
+		// if (energy1 < energy2)
+		// {
+		// 	energy = energy1;
+		// 	vtx = vertices_[v1].pt;
+		// }
+		// else{
+		// 	energy = energy2;
+		// 	vtx = vertices_[v2].pt;			
+		// }
 	}
+	// do not contract an edge which will cause face flipping/inversion
+	if (!isContractedVtxValid(edge, v1, vtx) || !isContractedVtxValid(edge, v2, vtx)) return false;
+
 	edge->heap_key(-energy); // it is a max-heap by default but we need a min-heap
 	return true;
 }
@@ -1421,7 +1429,7 @@ bool MeshPartition::isContractedVtxValid(Edge* edge, int endpoint, const Vector3
 		e3.normalize();
 		Vector3d n = e1 - (e1.dot(e3)) * e3; // plane normal through v1's opposite edge in the face
 		n.normalize();
-		if (n.dot(target_vtx - vertices_[p2].pt) <= 0) // distance(vtx, plane) <= 0
+		if (n.dot(target_vtx - vertices_[p2].pt) <= 1e-5) // distance(vtx, plane) <= 0
 			return false;
 	}
 	return true;
