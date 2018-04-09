@@ -1036,7 +1036,13 @@ void MeshPartition::contractInnerEdges()
 				cout << "  ERROR: No edge exists in the heap. Quitting..." << endl;
 				return;
 			}
-			applyVtxEdgeContraction(edge, cidx);
+			// NOTE: Even though we have already checked the validness of each edge's contraction 
+			// before adding it into the heap, we still need to check it again before contracting 
+			// it. The reason is that, we may have changed the connectivity of the edge's neighborhood 
+			// after it is inserted into the heap. Therefore, a valid edge in the heap may become 
+			// invalid again and we don't want to contract it. 
+			if (checkEdgeContraction(edge))
+				applyVtxEdgeContraction(edge, cidx);
 		}
 		assert(edge_num_ <= target_edge_num_);
 	}
@@ -1057,7 +1063,8 @@ void MeshPartition::contractAllBorderEdges()
 			cout << "  ERROR: No edge exists in the heap. Quitting..." << endl;
 			return;
 		}
-		applyVtxEdgeContraction(edge);
+		if (checkEdgeContraction(edge)) // similar reason as that in contracting inner edges
+			applyVtxEdgeContraction(edge);
 	}
 	assert(edge_num_ <= target_edge_num_);
 }
