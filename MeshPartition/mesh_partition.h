@@ -129,7 +129,7 @@ private:
 	void applyVtxEdgeContraction(Edge* edge, int cluster_idx = -1);
 	void applyBorderEdgeContractionByCluster(Edge* edge, int cluster_idx);
 	bool checkEdgeContraction(Edge* edge);
-	bool isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& vtx);
+	bool isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& target_vtx);
 	void createBorderHeapEdgeForCluster(int cluster_idx);
 	void createAllBorderHeapEdges();
 	void contractBorderEdgesByCluster();
@@ -176,6 +176,7 @@ public:
 	const double kFaceCoefficient = 1.0, kEdgeCoefficient = 10.0, kPointCoefficient = 1.0;
 	const int kMinEdgeNum = 5;
 	EdgeSimpType edge_simp_type_;
+	bool flag_preserve_topology_;
 	// std::chrono::high_resolution_clock::time_point start_time_; // timer
 };
 

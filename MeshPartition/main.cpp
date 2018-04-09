@@ -31,6 +31,9 @@ int main(int argc, char** argv)
 
 	// Plane inner edge simplification
 	cout << "Running inner edge contraction ..." << endl;
+	mesh_partition.flag_preserve_topology_ = true;
+	if (mesh_partition.flag_preserve_topology_)
+		fname += "-topo";
 	mesh_partition.runClusterInnerEdgeSimp(inside_edge_ratio);
 	string inner_simp_fname = fname + "-inner" + string(argv[3]) + ".ply";
 	cout << "Saving simplified PLY model '" << inner_simp_fname << "' ... " << endl;

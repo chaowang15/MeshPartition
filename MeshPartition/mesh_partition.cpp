@@ -10,6 +10,7 @@ MeshPartition::MeshPartition()
 {
 	vertex_num_ = face_num_ = 0;
 	simp_ratio_ = 1.0;
+	flag_preserve_topology_ = false;
 }
 
 MeshPartition::~MeshPartition()
@@ -1349,7 +1350,10 @@ void MeshPartition::initInnerEdgeQuadrics()
 	}
 	const double kFaceFactor = 1.0 / 3; // normalizing factor from the paper
 	for (int i = 0; i < vertex_num_; ++i)
+	{
 		vertices_[i].Q *= kFaceFactor;
+		vertices_[i].Q *= (1.0 / vertices_[i].belonging_faces.size());
+	}
 	// point quadrics
 	for (int i = 0; i < vertex_num_; ++i)
 	{
@@ -1369,24 +1373,27 @@ bool MeshPartition::checkEdgeContraction(Edge* edge)
 	if (Q.optimize(vtx, energy))
 	{
 		// Preserve topology (non-manifold, etc) : skip an edge with more than 2 common neighbors 
-		if (getCommonNeighborNum(v1, v2) > 2) return false;
+		if (flag_preserve_topology_ && getCommonNeighborNum(v1, v2) > 2) return false;
 		
 		// do not contract an edge which will cause face flipping/inversion
 		if (!isContractedVtxValid(edge, v1, vtx) || !isContractedVtxValid(edge, v2, vtx)) return false;
 	}
 	else
 	{	
-		// A is singular, use one of two endpoints minimizing energy as contracted vertex
-		double energy1 = Q(vertices_[v1].pt);
-		double energy2 = Q(vertices_[v2].pt);
-		energy = energy1 < energy2 ? energy1 : energy2;
+		// Use edge center as the target vertex
+		vtx = (vertices_[v1].pt + vertices_[v2].pt) / 2;
+		energy = Q.evaluate(vtx);
+		//// A is singular, use one of two endpoints minimizing energy as contracted vertex
+		//double energy1 = Q(vertices_[v1].pt);
+		//double energy2 = Q(vertices_[v2].pt);
+		//energy = energy1 < energy2 ? energy1 : energy2;
 	}
 	edge->heap_key(-energy); // it is a max-heap by default but we need a min-heap
 	return true;
 }
 
 // check if the edge contraction can cause simplex inversion
-bool MeshPartition::isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& vtx)
+bool MeshPartition::isContractedVtxValid(Edge* edge, int endpoint, const Vector3d& target_vtx)
 {
 	assert(endpoint == edge->v1 || endpoint == edge->v2);
 	int v1 = endpoint, v2 = (edge->v1 == endpoint) ? edge->v2 : edge->v1;
@@ -1414,7 +1421,7 @@ bool MeshPartition::isContractedVtxValid(Edge* edge, int endpoint, const Vector3
 		e3.normalize();
 		Vector3d n = e1 - (e1.dot(e3)) * e3; // plane normal through v1's opposite edge in the face
 		n.normalize();
-		if (n.dot(vtx - vertices_[p2].pt) <= 0) // distance(vtx, plane) <= 0
+		if (n.dot(target_vtx - vertices_[p2].pt) <= 0) // distance(vtx, plane) <= 0
 			return false;
 	}
 	return true;
@@ -1548,10 +1555,12 @@ void MeshPartition::applyBorderEdgeContractionByCluster(Edge* edge, int cluster_
 	double energy = 0;
 	if (!vertices_[v1].Q.optimize(vertices_[v1].pt, energy))
 	{
-		double energy1 = vertices_[v1].Q(vertices_[v1].pt);
-		double energy2 = vertices_[v1].Q(vertices_[v2].pt);
-		if (energy1 > energy2)
-			vertices_[v1].pt = vertices_[v2].pt;
+		vertices_[v1].pt = (vertices_[v1].pt + vertices_[v2].pt) / 2;
+		// Use the endpoint with smaller energy as target contraction vertex
+		//double energy1 = vertices_[v1].Q(vertices_[v1].pt);
+		//double energy2 = vertices_[v1].Q(vertices_[v2].pt);
+		//if (energy1 > energy2)
+		//	vertices_[v1].pt = vertices_[v2].pt;
 	}
 
 	// Update neighbor list of v2's old neighbors
